@@ -1,0 +1,119 @@
+[
+  {
+    "consts": [],
+    "flags": [],
+    "methods": [
+      {
+        "flags": [],
+        "name": "b",
+        "params": []
+      },
+      {
+        "flags": [
+          "getter",
+          "hasretval"
+        ],
+        "name": "c",
+        "params": [
+          {
+            "flags": [
+              "out"
+            ],
+            "type": {
+              "tag": "TD_INT32"
+            }
+          }
+        ]
+      },
+      {
+        "flags": [
+          "hasretval"
+        ],
+        "name": "d",
+        "params": [
+          {
+            "flags": [
+              "out"
+            ],
+            "type": {
+              "tag": "TD_INT32"
+            }
+          }
+        ]
+      },
+      {
+        "flags": [
+          "hasretval"
+        ],
+        "name": "e",
+        "params": [
+          {
+            "flags": [
+              "in"
+            ],
+            "type": {
+              "tag": "TD_INT32"
+            }
+          },
+          {
+            "flags": [
+              "out"
+            ],
+            "type": {
+              "tag": "TD_INT32"
+            }
+          }
+        ]
+      }
+    ],
+    "name": "nsITestA",
+    "parent": "nsISupports",
+    "uuid": "8782a9eb-ec64-4d2c-9365-6e5f681e1a0c"
+  },
+  {
+    "consts": [],
+    "flags": [],
+    "methods": [
+      {
+        "flags": [],
+        "name": "a",
+        "params": []
+      },
+      {
+        "flags": [
+          "hasretval"
+        ],
+        "name": "f",
+        "params": [
+          {
+            "flags": [
+              "out"
+            ],
+            "type": {
+              "tag": "TD_INT32"
+            }
+          }
+        ]
+      },
+      {
+        "flags": [
+          "hasretval"
+        ],
+        "name": "g",
+        "params": [
+          {
+            "flags": [
+              "out"
+            ],
+            "type": {
+              "tag": "TD_INT32"
+            }
+          }
+        ]
+      }
+    ],
+    "name": "nsITestB",
+    "parent": "nsISupports",
+    "uuid": "2b95ee9d-cba2-45ab-b719-f190ad0fc3b0"
+  }
+]
