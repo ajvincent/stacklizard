@@ -1,5 +1,5 @@
 // Goal:  Determine where we have to make changes if A.prototype.e becomes asynchronous.
-
+"use strict";
 function A() {
   this.x = this.c;
 }
