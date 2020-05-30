@@ -1,0 +1,38 @@
+<!-- to do:
+  Actually load b.html into a browser and test that a.js, b.js do what I think
+-->
+<html>
+<head>
+  <title>HTML fixture</title>
+  <meta charset="UTF-8">
+  <script src="../a/a.js"></script>
+  <script src="b.js"></script>
+  <script><!--
+window.addEventListener("load", function() {
+  var C = new A();
+
+  setTimeout(() => {
+    C.b();
+  }, 10);
+
+  C.r = async function() {
+    return await this.d();
+  };
+  window.C = C;
+}, true);
+  --></script>
+</head>
+<body>
+  <button onclick="output.value = B.c;">B.c</button>
+
+  <button onclick="output.value = B.d();">
+    B.d()
+  </button>
+
+  <button onclick="C.r().then(x => output.value = x - 1);">
+    C.r().then(x => output.value = x - 1)
+  </button>
+  <output id="output"></output>
+
+</body>
+</html>

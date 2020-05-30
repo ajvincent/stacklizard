@@ -1,0 +1,1 @@
+const B = new A();
