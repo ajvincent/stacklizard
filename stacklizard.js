@@ -53,6 +53,63 @@ StackLizard.prototype = {
 
     return found;
   },
+
+  definedOn: function(ancestors) {
+    let rv = {
+      name: "",
+      directParentNode: null,
+      directParentName: "",
+      ctorParentName: null,
+    }
+    ancestors.reverse();
+    ancestors.shift(); // this would be the definition of the function itself
+
+    // What name is the function assigned to?
+    {
+      let node = ancestors.shift();
+
+      if (node.type === "Property") {
+        rv.name = node.key.name;
+      }
+      else {
+        throw new Error("Unknown name for the desired function");
+      }
+    }
+
+    // What object holds this function as a method?
+    {
+      let node = ancestors.shift();
+      if (node.type === "ObjectExpression") {
+        rv.directParentNode = node;
+      }
+      else {
+        throw new Error(`Unknown parent object for the desired method ${rv.name}`);
+      }
+    }
+
+    // What name received the parent object?
+    {
+      let node = ancestors.shift();
+      if (node.type === "AssignmentExpression") {
+        // ignore the right, we just processed that
+        if (node.left.type === "MemberExpression") {
+          if (node.left.property.name === "prototype") {
+            // Aha, it's used in a constructor as well
+            rv.ctorParentName = node.left.object.name;
+          }
+          rv.directParentName = `${node.left.object.name}.${node.left.property.name}`;
+        }
+        else {
+          throw new Error(`Unknown assignee for the parent object of ${rv.name} at line ${node.loc.start}, column ${node.loc.start.column}`);
+        }
+      }
+      else {
+        throw new Error(`Unknown target for the parent object of ${rv.name}`);
+      }
+    }
+
+    return rv;
+  },
 };
 
 module.exports = StackLizard;
