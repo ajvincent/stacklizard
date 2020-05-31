@@ -27,6 +27,14 @@ function StackLizard(rootDir, options = {}) {
   this.nodeToFileName = new WeakMap(/*
     node: pathToFile
   */);
+
+  this.constructorNodesByName = new Map(/*
+    name: node[]
+  */);
+  this.instanceNodes = new Map(/*
+    name: node[]
+  */);
+  this.constructorNodesSet = new WeakSet();
 }
 StackLizard.prototype = {
   parseJSFile: async function(pathToFile) {
@@ -53,10 +61,19 @@ StackLizard.prototype = {
         this.nodesByLine.get(key).unshift(node);
 
         this.nodeToFileName.set(node, pathToFile);
+
+        if ((node.type === "FunctionDeclaration") &&
+            !this.constructorNodesByName.has(node.id.name)) {
+          this.constructorNodesByName.set(node.id.name, node);
+        }
+        else if (node.type === "NewExpression") {
+          const ctor = node.callee.name;
+          if (!this.instanceNodes.has(ctor))
+            this.instanceNodes.set(ctor, []);
+          this.instanceNodes.get(ctor).push(node);
+        }
       }
     );
-
-    return ast;
   },
 
   functionNodeFromLine: function(pathToFile, lineNumber, functionIndex = 0) {
@@ -84,8 +101,12 @@ StackLizard.prototype = {
       if (node.type === "Property") {
         rv.name = node.key.name;
       }
+      else if ((node.type === "Program") && (rv.node.type === "FunctionDeclaration")) {
+        rv.name = rv.node.id.name;
+        return rv;
+      }
       else {
-        throw new Error("Unknown name for the desired function");
+        throw new Error(`Unknown name for the desired function at ${rv.node.loc.start.line}`);
       }
     }
 
@@ -96,28 +117,7 @@ StackLizard.prototype = {
         rv.directParentNode = node;
       }
       else {
-        throw new Error(`Unknown parent object for the desired method ${rv.name}`);
-      }
-    }
-
-    // What name received the parent object?
-    {
-      let node = ancestors.shift();
-      if (node.type === "AssignmentExpression") {
-        // ignore the right, we just processed that
-        if (node.left.type === "MemberExpression") {
-          if (node.left.property.name === "prototype") {
-            // Aha, it's used in a constructor as well
-            rv.ctorParentName = node.left.object.name;
-          }
-          rv.directParentName = `${node.left.object.name}.${node.left.property.name}`;
-        }
-        else {
-          throw new Error(`Unknown assignee for the parent object of ${rv.name} at line ${node.loc.start}, column ${node.loc.start.column}`);
-        }
-      }
-      else {
-        throw new Error(`Unknown target for the parent object of ${rv.name}`);
+        throw new Error(`Unknown parent object for the desired method ${rv.name} at ${rv.node.loc.start.line}`);
       }
     }
 
@@ -153,7 +153,7 @@ StackLizard.prototype = {
           earliestMatch = null;
       };
     }
-    else {
+    else if (!this.constructorNodesSet.has(needleNode)) {
       throw new Error(`Unsupported property type: ${propertyType}`);
     }
 
@@ -167,17 +167,33 @@ StackLizard.prototype = {
       };
     }
 
-    const valueNodes = haystackNode.properties.map((n) => n.value);
+    const isFunctionDecl = haystackNode && (haystackNode.type === "FunctionDeclaration");
+    let valueNodes;
+    if (haystackNode && (haystackNode.type === "ObjectExpression"))
+      valueNodes = haystackNode.properties.map((n) => n.value);
+    else if (this.constructorNodesSet.has(needleNode)) {
+      valueNodes = this.instanceNodes.get(needleNode.id.name);
+    }
+    else if (isFunctionDecl)
+      valueNodes = [haystackNode.body];
+    else
+      throw new Error(`Unknown haystackNode type: ${haystackNode.type} for line ${haystackNode.loc.start.line}`);
 
     const awaitNodes = [/* node ... */ ];
     valueNodes.filter((subNode) => {
       if (subNode === needleNode)
         return false;
-      if (subNode.type !== "FunctionExpression")
+
+      let root;
+      if (isFunctionDecl)
+        root = subNode;
+      else if (subNode.type === "FunctionExpression")
+        root = subNode.body;
+      else
         return false;
 
       earliestMatch = null;
-      acornWalk.simple(subNode.body, walkVisitors);
+      acornWalk.simple(root, walkVisitors);
 
       if (earliestMatch) {
         awaitNodes.push(earliestMatch);
@@ -202,20 +218,35 @@ StackLizard.prototype = {
       const currentNode = matchedNodes[i];
       const ancestors = this.ancestorMap.get(currentNode);
       const propData = this.definedOn(ancestors);
-      const awaitNodes = this.nodesCallingMethodSync(
+
+      let awaitNodes = this.nodesCallingMethodSync(
         "this",
         ancestors[1].kind,
         propData.name,
         propData.directParentNode,
         propData.node,
-        ""
       );
+
+      let ctorNode = this.findConstructorNode(ancestors);
+      if (ctorNode) {
+        let ctorDescendants = this.nodesCallingMethodSync(
+          "this",
+          ancestors[1].kind,
+          propData.name,
+          ctorNode,
+          propData.node
+        );
+        if (ctorDescendants.length) {
+          this.constructorNodesSet.add(ctorNode);
+          awaitNodes = awaitNodes.concat(ctorDescendants);
+        }
+      }
 
       awaitNodeMap.set(currentNode, awaitNodes.slice(0));
 
       awaitNodes.forEach((awaitNode) => {
         const ancestors = this.ancestorMap.get(awaitNode);
-        const node = ancestors.find(n => n.type === "FunctionExpression");
+        const node = ancestors.find(n => n.type.includes("Function"));
 
         if (visitedNodes.has(node))
           return;
@@ -228,6 +259,25 @@ StackLizard.prototype = {
       matchedNodes,
       awaitNodeMap
     };
+  },
+
+  findConstructorNode: function(ancestors) {
+    const assignment = ancestors.find(anc => anc.type === "AssignmentExpression");
+    if (!assignment)
+      return null;
+    const propertyName = assignment.left.property.name;
+    const leftObj = assignment.left.object;
+    let nameWithProto = "";
+    if (propertyName === "prototype")
+      nameWithProto = this.getFullName(this.ancestorMap.get(leftObj));
+
+    // Maybe prototype appears on the object's name parts.
+    else if (leftObj.property.name === "prototype")
+      nameWithProto = this.getFullName(this.ancestorMap.get(leftObj.object))
+
+    if (nameWithProto)
+      return this.constructorNodesByName.get(nameWithProto.substr(0, nameWithProto.length - 10));
+    return null;
   },
 
   serializeAnalysis: function(stackData) {
@@ -285,12 +335,18 @@ StackLizard.prototype = {
   )
   {
     const ancestors = this.ancestorMap.get(awaitNode);
-    const asyncIndex = ancestors.findIndex(n => n.type === "FunctionExpression");
+    const asyncIndex = ancestors.findIndex(n => n.type.includes("Function"));
     const asyncNode = ancestors[asyncIndex];
     visitedNodes.add(asyncNode);
 
-    const name = ancestors[asyncIndex + 1].key.name;
-    var results = `${prefix}${this.getFullName(ancestors)}()`;
+    var results = prefix;
+    {
+    if (this.constructorNodesSet.has(asyncNode))
+      results += asyncNode.id.name;
+    else
+      results += `${this.getFullName(ancestors)}`;
+    }
+    results += "()";
 
     {
       const fileLine = this.nodeToFileName.get(awaitNode);
