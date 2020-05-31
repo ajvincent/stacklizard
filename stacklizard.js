@@ -45,8 +45,12 @@ StackLizard.prototype = {
     const source = await fs.readFile(fullPath, { encoding: "UTF-8"} );
     const ast = espree.parse(source, sourceOptions);
     this.sources.set(pathToFile, ast);
+    return ast;
+  },
 
+  populateMaps: function(pathToFile, correctionOptions = {}) {
     // map nodes to ancestors, and record each node by its starting line number.
+    const ast = this.sources.get(pathToFile);
     acornWalk.fullAncestor(
       ast,
       (node, ancestors) => {

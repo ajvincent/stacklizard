@@ -4,10 +4,11 @@ const StackLizard = require("./stacklizard.js");
 
 (async function() {
   const lizard = new StackLizard("fixtures/single-file");
-  await lizard.parseJSFile("fixture.js");
+  const pathToFile = "fixture.js";
+  await lizard.parseJSFile(pathToFile);
+  lizard.populateMaps(pathToFile);
 
-  const stacks = lizard.getStacksOfFunction("fixture.js", 26);
-
+  const stacks = lizard.getStacksOfFunction(pathToFile, 26);
   const analysis = lizard.serializeAnalysis(stacks);
 
   const fs = require("fs").promises;
