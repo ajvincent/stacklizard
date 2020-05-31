@@ -7,5 +7,13 @@ const StackLizard = require("./stacklizard.js");
   await lizard.parseJSFile("fixture.js");
   const ancestors = lizard.ancestorsJS("fixture.js", 19);
   const propData = lizard.definedOn(ancestors);
-  console.log(propData);
+  const methodNodes = lizard.nodesCallingMethodSync(
+    "this",
+    "method",
+    propData.name,
+    propData.directParentNode,
+    propData.node,
+    ""
+  );
+  console.log(methodNodes);
 })();

@@ -10,7 +10,7 @@ const sourceOptions = {
 };
 
 const SYMBOLS = {
-  foundAncestors: Symbol("Found ancestors"),
+  abortAcornWalk: Symbol("Abort acorn walk"),
 };
 
 function StackLizard(rootDir, options = {}) {
@@ -41,13 +41,13 @@ StackLizard.prototype = {
           hits++;
           if (hits == functionIndex) {
             found = ancestors;
-            throw SYMBOLS.foundAncestors;
+            throw SYMBOLS.abortAcornWalk;
           }
         }
       });
     }
     catch (ex) {
-      if (ex !== SYMBOLS.foundAncestors)
+      if (ex !== SYMBOLS.abortAcornWalk)
         throw ex;
     }
 
@@ -55,14 +55,16 @@ StackLizard.prototype = {
   },
 
   definedOn: function(ancestors) {
+    ancestors = ancestors.slice();
+    ancestors.reverse();
+
     let rv = {
+      node: ancestors.shift(),
       name: "",
       directParentNode: null,
       directParentName: "",
-      ctorParentName: null,
+      ctorParentName: "",
     }
-    ancestors.reverse();
-    ancestors.shift(); // this would be the definition of the function itself
 
     // What name is the function assigned to?
     {
@@ -109,6 +111,53 @@ StackLizard.prototype = {
     }
 
     return rv;
+  },
+
+  nodesCallingMethodSync: function(
+    parentPath,
+    propertyType,
+    methodName,
+    haystackNode,
+    needleNode
+  )
+  {
+    const walkVisitors = {};
+    let lastMatched = null;
+
+    if (propertyType === "method") {
+      if (parentPath !== "this")
+        throw new Error("Not yet supporting non-this parents");
+
+      walkVisitors.CallExpression = (descendantNode, ancestors) => {
+        if ((descendantNode.callee.object.type !== "ThisExpression") ||
+            (descendantNode.callee.property.name !== methodName))
+          return;
+        lastMatched = descendantNode;
+      };
+
+      walkVisitors.AwaitExpression = (descendantNode, ancestors) => {
+        if (lastMatched === descendantNode.argument)
+          lastMatched = null;
+      };
+    }
+    else {
+      throw new Error(`Unsupported property type: ${propertyType}`);
+    }
+
+    return haystackNode.properties.filter((propertyNode) => {
+      const subNode = propertyNode.value;
+      if (subNode === needleNode)
+        return false;
+      if (subNode.type !== "FunctionExpression")
+        return false;
+
+      lastMatched = null;
+      acornWalk.ancestor(subNode.body, walkVisitors);
+
+      let rv = Boolean(lastMatched);
+      lastMatched = null;
+      return rv;
+    });
   },
 };
 
