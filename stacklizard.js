@@ -133,7 +133,7 @@ StackLizard.prototype = {
   )
   {
     const walkVisitors = {};
-    let lastMatched = null;
+    let earliestMatch = null;
 
     if ((propertyType === "init") ||
         (propertyType === "get")) {
@@ -141,15 +141,16 @@ StackLizard.prototype = {
         throw new Error("Not yet supporting non-this parents");
 
       walkVisitors.CallExpression = (descendantNode) => {
-        if ((descendantNode.callee.object.type !== "ThisExpression") ||
+        if (earliestMatch ||
+            (descendantNode.callee.object.type !== "ThisExpression") ||
             (descendantNode.callee.property.name !== methodName))
           return;
-        lastMatched = descendantNode;
+        earliestMatch = descendantNode;
       };
 
       walkVisitors.AwaitExpression = (descendantNode) => {
-        if (lastMatched === descendantNode.argument)
-          lastMatched = null;
+        if (earliestMatch === descendantNode.argument)
+          earliestMatch = null;
       };
     }
     else {
@@ -158,28 +159,34 @@ StackLizard.prototype = {
 
     if (propertyType === "get") {
       walkVisitors.MemberExpression = (descendantNode) => {
-        if ((descendantNode.object.type !== "ThisExpression") ||
+        if (earliestMatch ||
+            (descendantNode.object.type !== "ThisExpression") ||
             (descendantNode.property.name !== methodName))
           return;
-        lastMatched = descendantNode;
+        earliestMatch = descendantNode;
       };
     }
 
     const valueNodes = haystackNode.properties.map((n) => n.value);
 
-    return valueNodes.filter((subNode) => {
+    const awaitNodes = [/* node ... */ ];
+    valueNodes.filter((subNode) => {
       if (subNode === needleNode)
         return false;
       if (subNode.type !== "FunctionExpression")
         return false;
 
-      lastMatched = null;
+      earliestMatch = null;
       acornWalk.simple(subNode.body, walkVisitors);
 
-      let rv = Boolean(lastMatched);
-      lastMatched = null;
-      return rv;
+      if (earliestMatch) {
+        awaitNodes.push(earliestMatch);
+      }
+
+      return earliestMatch;
     });
+
+    return awaitNodes;
   },
 
   getStacksOfFunction: function(pathToFile, lineNumber, functionIndex = 0) {
@@ -187,15 +194,15 @@ StackLizard.prototype = {
       pathToFile, lineNumber, functionIndex
     );
     let matchedNodes = [functionNode];
-    let indentMap = new WeakMap();
-    indentMap.set(functionNode, 0);
+
+    const visitedNodes = new WeakSet(/* node, ... */);
+    const awaitNodeMap = new WeakMap(/* node: node[] */);
 
     for (let i = 0; i < matchedNodes.length; i++) {
       const currentNode = matchedNodes[i];
-      const indent = indentMap.get(currentNode) + 1;
       const ancestors = this.ancestorMap.get(currentNode);
       const propData = this.definedOn(ancestors);
-      const methodNodes = this.nodesCallingMethodSync(
+      const awaitNodes = this.nodesCallingMethodSync(
         "this",
         ancestors[1].kind,
         propData.name,
@@ -204,17 +211,104 @@ StackLizard.prototype = {
         ""
       );
 
-      methodNodes.forEach((node) => {
-        if (indentMap.has(node))
+      awaitNodeMap.set(currentNode, awaitNodes.slice(0));
+
+      awaitNodes.forEach((awaitNode) => {
+        const ancestors = this.ancestorMap.get(awaitNode);
+        const node = ancestors.find(n => n.type === "FunctionExpression");
+
+        if (visitedNodes.has(node))
           return;
-        indentMap.set(node, indent);
+        visitedNodes.add(node);
         matchedNodes.push(node);
       });
-
-      debugger;
     }
 
-    return matchedNodes;
+    return {
+      matchedNodes,
+      awaitNodeMap
+    };
+  },
+
+  serializeAnalysis: function(stackData) {
+    const visitedNodes = new WeakSet();
+    let results = "";
+    for (let i = 0; i < stackData.matchedNodes.length; i++) {
+      const currentNode = stackData.matchedNodes[i];
+      if (visitedNodes.has(currentNode))
+        continue;
+      results += this.serializeSyncLeafNode(
+        currentNode, visitedNodes, stackData.awaitNodeMap
+      );
+    }
+    return results;
+  },
+
+  serializeSyncLeafNode: function(
+    currentNode,
+    visitedNodes,
+    awaitNodeMap,
+  )
+  {
+    let results = "";
+    visitedNodes.add(currentNode);
+
+    {
+      const ancestors = this.ancestorMap.get(currentNode);
+      results += ancestors[1].key.name + "(): ";
+    }
+
+    results += `async ${currentNode.loc.start.line}\n`;
+
+    const awaitNodes = awaitNodeMap.get(currentNode);
+    awaitNodes.forEach((awaitNode) => {
+      results += this.serializeSyncAwaitNode(
+        "  ",
+        awaitNode,
+        visitedNodes,
+        awaitNodeMap
+      );
+    });
+
+    return results;
+  },
+
+  serializeSyncAwaitNode: function(
+    prefix,
+    awaitNode,
+    visitedNodes,
+    awaitNodeMap
+  )
+  {
+    const ancestors = this.ancestorMap.get(awaitNode);
+    const asyncIndex = ancestors.findIndex(n => n.type === "FunctionExpression");
+    const asyncNode = ancestors[asyncIndex];
+    visitedNodes.add(asyncNode);
+
+    const name = ancestors[asyncIndex + 1].key.name;
+    var results = `${prefix}${name}(): `;
+
+    if (!asyncNode.async) {
+      results += `async ${
+        asyncNode.loc.start.line
+      }, `;
+    }
+
+    results += `await ${
+      awaitNode.loc.start.line
+    }\n`;
+
+    const nextAwaitNodes = awaitNodeMap.get(asyncNode);
+    nextAwaitNodes.forEach((nextAwaitNode) => {
+      results += this.serializeSyncAwaitNode(
+        prefix + "  ",
+        nextAwaitNode,
+        visitedNodes,
+        awaitNodeMap
+      );
+    });
+
+    return results;
   }
 };
 
