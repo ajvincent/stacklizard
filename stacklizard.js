@@ -242,13 +242,18 @@ StackLizard.prototype = {
         }
       }
 
+      if (this.constructorNodesSet.has(currentNode)) {
+        const ctorName = currentNode.id.name;
+        awaitNodes = awaitNodes.concat(this.instanceNodes.get(ctorName));
+      }
+
       awaitNodeMap.set(currentNode, awaitNodes.slice(0));
 
       awaitNodes.forEach((awaitNode) => {
         const ancestors = this.ancestorMap.get(awaitNode);
         const node = ancestors.find(n => n.type.includes("Function"));
 
-        if (visitedNodes.has(node))
+        if (!node || visitedNodes.has(node))
           return;
         visitedNodes.add(node);
         matchedNodes.push(node);
@@ -337,16 +342,20 @@ StackLizard.prototype = {
     const ancestors = this.ancestorMap.get(awaitNode);
     const asyncIndex = ancestors.findIndex(n => n.type.includes("Function"));
     const asyncNode = ancestors[asyncIndex];
-    visitedNodes.add(asyncNode);
+    if (typeof asyncNode === "object")
+      visitedNodes.add(asyncNode);
 
     var results = prefix;
+
     {
-    if (this.constructorNodesSet.has(asyncNode))
-      results += asyncNode.id.name;
-    else
-      results += `${this.getFullName(ancestors)}`;
+      let name;
+      if (this.constructorNodesSet.has(asyncNode))
+        results += asyncNode.id.name;
+      else
+        results += `${this.getFullName(ancestors)}`;
     }
-    results += "()";
+    if (ancestors.every(n => n.type !== "VariableDeclarator"))
+      results += "()";
 
     {
       const fileLine = this.nodeToFileName.get(awaitNode);
@@ -354,21 +363,23 @@ StackLizard.prototype = {
     }
     results += ": ";
 
-    if (!asyncNode.async) {
+    if (asyncNode && !asyncNode.async) {
       results += `async ${asyncNode.loc.start.line}, `;
     }
 
     results += `await ${awaitNode.loc.start.line}\n`;
 
-    const nextAwaitNodes = awaitNodeMap.get(asyncNode);
-    nextAwaitNodes.forEach((nextAwaitNode) => {
-      results += this.serializeSyncAwaitNode(
-        prefix + "  ",
-        nextAwaitNode,
-        visitedNodes,
-        awaitNodeMap
-      );
-    });
+    if (asyncNode) {
+      const nextAwaitNodes = awaitNodeMap.get(asyncNode);
+      nextAwaitNodes.forEach((nextAwaitNode) => {
+        results += this.serializeSyncAwaitNode(
+          prefix + "  ",
+          nextAwaitNode,
+          visitedNodes,
+          awaitNodeMap
+        );
+      });
+    }
 
     return results;
   },
@@ -394,6 +405,9 @@ StackLizard.prototype = {
 
           rv = names.join(".") + "." + rv;
           return;
+
+        case "VariableDeclarator":
+          rv = anc.id.name + ".";
       }
     });
     return rv.substr(0, rv.length - 1);
