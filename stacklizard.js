@@ -24,8 +24,8 @@ function StackLizard(rootDir, options = {}) {
     pathToFile + ":" + lineNumber: node[]
   */);
 
-  this.linesByNode = new WeakMap(/*
-    node: pathToFile + ":" + lineNumber
+  this.nodeToFileName = new WeakMap(/*
+    node: pathToFile
   */);
 }
 StackLizard.prototype = {
@@ -52,7 +52,7 @@ StackLizard.prototype = {
           this.nodesByLine.set(key, []);
         this.nodesByLine.get(key).unshift(node);
 
-        this.linesByNode.set(node, key);
+        this.nodeToFileName.set(node, pathToFile);
       }
     );
 
@@ -255,10 +255,14 @@ StackLizard.prototype = {
 
     {
       const ancestors = this.ancestorMap.get(currentNode);
-      results += ancestors[1].key.name + "(): ";
+      results += ancestors[1].key.name + "()";
     }
 
-    results += `async ${currentNode.loc.start.line}\n`;
+    {
+      const fileLine = this.nodeToFileName.get(currentNode);
+      results += ", " + fileLine;
+    }
+    results += `: async ${currentNode.loc.start.line}\n`;
 
     const awaitNodes = awaitNodeMap.get(currentNode);
     awaitNodes.forEach((awaitNode) => {
@@ -286,17 +290,19 @@ StackLizard.prototype = {
     visitedNodes.add(asyncNode);
 
     const name = ancestors[asyncIndex + 1].key.name;
-    var results = `${prefix}${name}(): `;
+    var results = `${prefix}${name}()`;
+
+    {
+      const fileLine = this.nodeToFileName.get(awaitNode);
+      results += ", " + fileLine;
+    }
+    results += ": ";
 
     if (!asyncNode.async) {
-      results += `async ${
-        asyncNode.loc.start.line
-      }, `;
+      results += `async ${asyncNode.loc.start.line}, `;
     }
 
-    results += `await ${
-      awaitNode.loc.start.line
-    }\n`;
+    results += `await ${awaitNode.loc.start.line}\n`;
 
     const nextAwaitNodes = awaitNodeMap.get(asyncNode);
     nextAwaitNodes.forEach((nextAwaitNode) => {
