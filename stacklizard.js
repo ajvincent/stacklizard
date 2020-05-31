@@ -305,7 +305,7 @@ StackLizard.prototype = {
     awaitNodeMap,
   )
   {
-    let results = "";
+    let results = "- ";
     visitedNodes.add(currentNode);
 
     {
@@ -345,7 +345,7 @@ StackLizard.prototype = {
     if (typeof asyncNode === "object")
       visitedNodes.add(asyncNode);
 
-    var results = prefix;
+    var results = prefix + "- ";
 
     {
       let name;
