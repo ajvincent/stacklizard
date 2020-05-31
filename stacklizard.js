@@ -19,44 +19,50 @@ function StackLizard(rootDir, options = {}) {
   this.sources = new Map(/*
     path: espree.parse(...)
   */);
+  this.ancestorMap = new WeakMap(/* node: node[] */);
+  this.nodesByLineMap = new Map(/*
+    pathToFile + ":" + lineNumber: node[]
+  */);
 }
 StackLizard.prototype = {
   parseJSFile: async function(pathToFile) {
+    if (this.sources.has(pathToFile))
+      return this.sources.get(pathToFile);
+
     const fullPath = path.join(process.cwd(), this.rootDir, pathToFile);
     const source = await fs.readFile(fullPath, { encoding: "UTF-8"} );
     const ast = espree.parse(source, sourceOptions);
     this.sources.set(pathToFile, ast);
+
+    // map nodes to ancestors, and record each node by its starting line number.
+    debugger;
+    acornWalk.fullAncestor(
+      ast,
+      (node, ancestors) => {
+        ancestors = ancestors.slice(0);
+        ancestors.reverse();
+        this.ancestorMap.set(node, ancestors);
+
+        const lineNumber = node.loc.start.line;
+        const key = pathToFile + ":" + lineNumber;
+        if (!this.nodesByLineMap.has(key))
+          this.nodesByLineMap.set(key, []);
+        this.nodesByLineMap.get(key).unshift(node);
+      }
+    );
+
     return ast;
   },
 
-  ancestorsJS: function(pathToFile, lineNumber, functionIndex = 1) {
-    const ast = this.sources.get(pathToFile);
-    let found = null, hits = 0;
-
-    try {
-      acornWalk.ancestor(ast, {
-        FunctionExpression(_, ancestors) {
-          if ((_.loc.start.line != lineNumber))
-            return;
-          hits++;
-          if (hits == functionIndex) {
-            found = ancestors;
-            throw SYMBOLS.abortAcornWalk;
-          }
-        }
-      });
-    }
-    catch (ex) {
-      if (ex !== SYMBOLS.abortAcornWalk)
-        throw ex;
-    }
-
-    return found;
+  functionNodeFromLine: function(pathToFile, lineNumber, functionIndex = 0) {
+    const key = pathToFile + ":" + lineNumber;
+    let nodeList = this.nodesByLineMap.get(key);
+    nodeList = nodeList.filter((node) => node.type === "FunctionExpression");
+    return nodeList[functionIndex] || null;
   },
 
   definedOn: function(ancestors) {
     ancestors = ancestors.slice();
-    ancestors.reverse();
 
     let rv = {
       node: ancestors.shift(),
