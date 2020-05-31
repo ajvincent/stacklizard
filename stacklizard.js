@@ -20,8 +20,12 @@ function StackLizard(rootDir, options = {}) {
     path: espree.parse(...)
   */);
   this.ancestorMap = new WeakMap(/* node: node[] */);
-  this.nodesByLineMap = new Map(/*
+  this.nodesByLine = new Map(/*
     pathToFile + ":" + lineNumber: node[]
+  */);
+
+  this.linesByNode = new WeakMap(/*
+    node: pathToFile + ":" + lineNumber
   */);
 }
 StackLizard.prototype = {
@@ -35,7 +39,6 @@ StackLizard.prototype = {
     this.sources.set(pathToFile, ast);
 
     // map nodes to ancestors, and record each node by its starting line number.
-    debugger;
     acornWalk.fullAncestor(
       ast,
       (node, ancestors) => {
@@ -45,9 +48,11 @@ StackLizard.prototype = {
 
         const lineNumber = node.loc.start.line;
         const key = pathToFile + ":" + lineNumber;
-        if (!this.nodesByLineMap.has(key))
-          this.nodesByLineMap.set(key, []);
-        this.nodesByLineMap.get(key).unshift(node);
+        if (!this.nodesByLine.has(key))
+          this.nodesByLine.set(key, []);
+        this.nodesByLine.get(key).unshift(node);
+
+        this.linesByNode.set(node, key);
       }
     );
 
@@ -56,7 +61,7 @@ StackLizard.prototype = {
 
   functionNodeFromLine: function(pathToFile, lineNumber, functionIndex = 0) {
     const key = pathToFile + ":" + lineNumber;
-    let nodeList = this.nodesByLineMap.get(key);
+    let nodeList = this.nodesByLine.get(key);
     nodeList = nodeList.filter((node) => node.type === "FunctionExpression");
     return nodeList[functionIndex] || null;
   },
@@ -130,18 +135,19 @@ StackLizard.prototype = {
     const walkVisitors = {};
     let lastMatched = null;
 
-    if (propertyType === "method") {
+    if ((propertyType === "init") ||
+        (propertyType === "get")) {
       if (parentPath !== "this")
         throw new Error("Not yet supporting non-this parents");
 
-      walkVisitors.CallExpression = (descendantNode, ancestors) => {
+      walkVisitors.CallExpression = (descendantNode) => {
         if ((descendantNode.callee.object.type !== "ThisExpression") ||
             (descendantNode.callee.property.name !== methodName))
           return;
         lastMatched = descendantNode;
       };
 
-      walkVisitors.AwaitExpression = (descendantNode, ancestors) => {
+      walkVisitors.AwaitExpression = (descendantNode) => {
         if (lastMatched === descendantNode.argument)
           lastMatched = null;
       };
@@ -150,21 +156,66 @@ StackLizard.prototype = {
       throw new Error(`Unsupported property type: ${propertyType}`);
     }
 
-    return haystackNode.properties.filter((propertyNode) => {
-      const subNode = propertyNode.value;
+    if (propertyType === "get") {
+      walkVisitors.MemberExpression = (descendantNode) => {
+        if ((descendantNode.object.type !== "ThisExpression") ||
+            (descendantNode.property.name !== methodName))
+          return;
+        lastMatched = descendantNode;
+      };
+    }
+
+    const valueNodes = haystackNode.properties.map((n) => n.value);
+
+    return valueNodes.filter((subNode) => {
       if (subNode === needleNode)
         return false;
       if (subNode.type !== "FunctionExpression")
         return false;
 
       lastMatched = null;
-      acornWalk.ancestor(subNode.body, walkVisitors);
+      acornWalk.simple(subNode.body, walkVisitors);
 
       let rv = Boolean(lastMatched);
       lastMatched = null;
       return rv;
     });
   },
+
+  getStacksOfFunction: function(pathToFile, lineNumber, functionIndex = 0) {
+    const functionNode = this.functionNodeFromLine(
+      pathToFile, lineNumber, functionIndex
+    );
+    let matchedNodes = [functionNode];
+    let indentMap = new WeakMap();
+    indentMap.set(functionNode, 0);
+
+    for (let i = 0; i < matchedNodes.length; i++) {
+      const currentNode = matchedNodes[i];
+      const indent = indentMap.get(currentNode) + 1;
+      const ancestors = this.ancestorMap.get(currentNode);
+      const propData = this.definedOn(ancestors);
+      const methodNodes = this.nodesCallingMethodSync(
+        "this",
+        ancestors[1].kind,
+        propData.name,
+        propData.directParentNode,
+        propData.node,
+        ""
+      );
+
+      methodNodes.forEach((node) => {
+        if (indentMap.has(node))
+          return;
+        indentMap.set(node, indent);
+        matchedNodes.push(node);
+      });
+
+      debugger;
+    }
+
+    return matchedNodes;
+  }
 };
 
 module.exports = StackLizard;
