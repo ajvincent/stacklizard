@@ -4,7 +4,7 @@
   "description": "A static analysis tool for identifying ancestors of a JavaScript function that must be async if that function becomes async.",
   "main": "stacklizard.js",
   "scripts": {
-    "test": "node test.js"
+    "test": "mocha"
   },
   "repository": {
     "type": "git",
@@ -19,5 +19,8 @@
   "dependencies": {
     "acorn-walk": "^7.1.1",
     "espree": "^7.0.0"
+  },
+  "devDependencies": {
+    "mocha": "^7.2.0"
   }
 }
