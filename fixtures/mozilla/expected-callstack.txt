@@ -1,6 +1,6 @@
 - A.prototype.e(), a/a.jsm: async 26
   - A.prototype.d(), a/a.jsm: async 19, await 22
-    - A.prototype.c(), a/a.jsm: getter, async 15, await 16
+    - A.prototype.c(), a/a.jsm: async 15, await 16, getter
       - A.prototype.b(), a/a.jsm: async 11, await 12
         - A.prototype.a(), a/a.jsm: async 7, await 8
           - nsITestB, a/nsITestB.idl: Promise 13

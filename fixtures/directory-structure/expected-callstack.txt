@@ -1,11 +1,11 @@
 - A.prototype.e(), a/a.js: async 26
   - A.prototype.d(), a/a.js: async 19, await 22
-    - A.prototype.c(), a/a.js: getter, async 15, await 16
+    - A.prototype.c(), a/a.js: async 15, await 16, getter
       - A.prototype.b(), a/a.js: async 11, await 12
         - A.prototype.a(), a/a.js: async 7, await 8
       - A(), a/a.js: async 3, await 4
-        - B, b/b.js: instance, await 1
-          - B.c, b/b.html: handler, await 26
-          - B.d, b/b.html: handler, await 28
-        - C, b/b.html: listener, await 12
-          - C.b(), b/b.html: listener, await 15
+        - B, b/b.js: await 1, instance
+          - B.c, b/b.html: await 26, handler
+          - B.d, b/b.html: await 28, handler
+        - C, b/b.html: await 12, listener
+          - C.b(), b/b.html: await 15, listener

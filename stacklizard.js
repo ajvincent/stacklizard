@@ -227,6 +227,7 @@ StackLizard.prototype = {
         propData.node,
       );
 
+      // Constructors
       let ctorNode = this.findConstructorNode(ancestors);
       if (ctorNode) {
         let ctorDescendants = this.nodesCallingMethodSync(
@@ -242,6 +243,7 @@ StackLizard.prototype = {
         }
       }
 
+      // Instances
       if (this.constructorNodesSet.has(currentNode)) {
         const ctorName = currentNode.id.name;
         awaitNodes = awaitNodes.concat(this.instanceNodes.get(ctorName));
@@ -342,7 +344,7 @@ StackLizard.prototype = {
     const ancestors = this.ancestorMap.get(awaitNode);
     const asyncIndex = ancestors.findIndex(n => n.type.includes("Function"));
     const asyncNode = ancestors[asyncIndex];
-    if (typeof asyncNode === "object")
+    if (asyncNode)
       visitedNodes.add(asyncNode);
 
     var results = prefix + "- ";
@@ -354,7 +356,8 @@ StackLizard.prototype = {
       else
         results += `${this.getFullName(ancestors)}`;
     }
-    if (ancestors.every(n => n.type !== "VariableDeclarator"))
+
+    if (asyncNode)
       results += "()";
 
     {
@@ -367,7 +370,24 @@ StackLizard.prototype = {
       results += `async ${asyncNode.loc.start.line}, `;
     }
 
-    results += `await ${awaitNode.loc.start.line}\n`;
+    results += `await ${awaitNode.loc.start.line}`;
+
+    // Getter and setter annotations
+    if (asyncIndex < ancestors.length - 1) {
+      let asyncParent = ancestors[asyncIndex + 1];
+      if ((asyncParent.type === "Property") && (asyncParent.kind === "get"))
+        results += ", getter";
+
+      if ((asyncParent.type === "Property") && (asyncParent.kind === "set"))
+        results += ", setter";
+    }
+
+    // Instance annotation
+    if (awaitNode.type === "NewExpression") {
+      results += ", instance";
+    }
+
+    results += '\n';
 
     if (asyncNode) {
       const nextAwaitNodes = awaitNodeMap.get(asyncNode);
