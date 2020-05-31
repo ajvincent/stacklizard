@@ -255,7 +255,7 @@ StackLizard.prototype = {
 
     {
       const ancestors = this.ancestorMap.get(currentNode);
-      results += ancestors[1].key.name + "()";
+      results += this.getFullName(ancestors) + "()";
     }
 
     {
@@ -290,7 +290,7 @@ StackLizard.prototype = {
     visitedNodes.add(asyncNode);
 
     const name = ancestors[asyncIndex + 1].key.name;
-    var results = `${prefix}${name}()`;
+    var results = `${prefix}${this.getFullName(ancestors)}()`;
 
     {
       const fileLine = this.nodeToFileName.get(awaitNode);
@@ -315,7 +315,34 @@ StackLizard.prototype = {
     });
 
     return results;
+  },
+
+  getFullName: function(ancestors) {
+    let rv = "";
+    ancestors.forEach(anc => {
+      switch (anc.type) {
+        case "Property":
+          rv = anc.key.name + ".";
+          return;
+
+        case "AssignmentExpression":
+          let stack = [];
+          let obj = anc.left.object;
+          while (obj.type === "MemberExpression") {
+            stack.unshift(obj);
+            obj = obj.object;
+          }
+          let names = stack.map(mid => mid.property.name);
+          names.push(anc.left.property.name);
+          names.unshift(obj.name);
+
+          rv = names.join(".") + "." + rv;
+          return;
+      }
+    });
+    return rv.substr(0, rv.length - 1);
   }
 };
+
 
 module.exports = StackLizard;
