@@ -5,4 +5,4 @@ A.prototype.e(), fixture.js: async 26
         A.prototype.a(), fixture.js: async 7, await 8
       A(), fixture.js: async 3, await 4
         B, fixture.js: instance, await 39
-    A.prototype.p, fixture.js: await 39
+    A.prototype.p(), fixture.js: await 39
