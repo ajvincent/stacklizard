@@ -464,13 +464,25 @@ StackLizard.prototype = {
 
   /**
    * Generate a string representation of newly-marked async and await nodes.
-   * @param {Object} stackData from getStacksOfFunction()
+   * @param {Object[]} stackDataSet Rest parameters from getStacksOfFunction()
    *
    * @returns {string} The serialization in Markdown format.
    * @public
    */
-  serializeAnalysis: function(stackData) {
+  serializeAnalysis: function(...stackDataSet) {
     const visitedNodes = new WeakSet();
+    return stackDataSet.map(s => this.serializeAnalysisRoot(s, visitedNodes)).join("\n");
+  },
+
+  /**
+   * Generate a string representation of newly-marked async and await nodes.
+   * @param {Object} stackData from getStacksOfFunction()
+   * @param {WeakSet} visitedNodes
+   *
+   * @returns {string} The serialization in Markdown format.
+   * @private
+   */
+  serializeAnalysisRoot: function(stackData, visitedNodes) {
     let results = "";
     for (let i = 0; i < stackData.matchedNodes.length; i++) {
       const currentNode = stackData.matchedNodes[i];
