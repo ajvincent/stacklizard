@@ -12,7 +12,7 @@ async function fixtureTest(fixture) {
   {
     const jsonSrc = await fs.readFile(
       path.join(process.cwd(), root, "test-config.json"),
-      { encoding: "utf-8"}
+      { encoding: "utf-8" }
     );
     json = JSON.parse(jsonSrc);
   }
@@ -32,12 +32,12 @@ async function fixtureTest(fixture) {
   await fs.writeFile(
     path.join(process.cwd(), root, "actual-callstack.txt"),
     analysis,
-    { encoding: "utf-8"}
+    { encoding: "utf-8" }
   );
 
   const expected = await fs.readFile(
     path.join(process.cwd(), root, "expected-callstack.txt"),
-    { encoding: "utf-8"}
+    { encoding: "utf-8" }
   );
 
   assert.equal(analysis, expected);
