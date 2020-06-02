@@ -11,7 +11,7 @@ function assertJSONEqual(actual, expected, message = "") {
   );
 }
 
-describe("checkForEventHandler", function() {
+describe("HTMLDriver.prototype.checkForEventHandler", function() {
   let driver, current, scriptStart;
   const location = {
     line: 3,
