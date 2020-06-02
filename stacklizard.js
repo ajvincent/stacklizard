@@ -125,7 +125,7 @@ StackLizard.prototype = {
       return this.sources.get(pathToFile);
 
     const fullPath = path.join(process.cwd(), this.rootDir, pathToFile);
-    const source = await fs.readFile(fullPath, { encoding: "UTF-8"} );
+    const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
     const ast = espree.parse(source, sourceOptions);
     this.sources.set(pathToFile, ast);
     return ast;
