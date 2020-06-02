@@ -5,8 +5,8 @@
   "main": "stacklizard.js",
   "scripts": {
     "start": "./stacklizard.js",
-    "test": "mocha",
-    "debug": "./node_modules/mocha/bin/mocha --inspect-brk"
+    "test": "mocha --recursive",
+    "debug": "./node_modules/mocha/bin/mocha --recursive --inspect-brk"
   },
   "repository": {
     "type": "git",
