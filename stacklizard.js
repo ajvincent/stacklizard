@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 "use strict";
 
 /**
@@ -659,3 +661,10 @@ StackLizard.prototype = {
 };
 
 module.exports = StackLizard;
+
+if (require.main === module) {
+  (async function() {
+    const command = require("./command-line");
+    await command.execute();
+  })();
+}
