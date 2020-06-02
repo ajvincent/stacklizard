@@ -21,7 +21,8 @@
   "dependencies": {
     "acorn-walk": "^7.1.1",
     "argparse": "^1.0.10",
-    "espree": "^7.0.0"
+    "espree": "^7.0.0",
+    "htmlparser2": "^3.10.1"
   },
   "devDependencies": {
     "mocha": "^7.2.0"

@@ -48,7 +48,3 @@ describe("Fixtures tests: ", function() {
     "single-file",
   ].forEach(fixture => it(fixture, async () => fixtureTest(fixture)));
 });
-
-/* TODO:
- * npm install htmlparser2@3.10.1 # sax-like htmlparser Mozilla uses
- */
