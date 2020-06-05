@@ -17,9 +17,21 @@ async function fixtureTest(fixture) {
     json = JSON.parse(jsonSrc);
   }
 
+  if (json.debug)
+    debugger;
+
   if (Array.isArray(json.scripts)) {
     await Promise.all(json.scripts.map(async path => lizard.parseJSFile(path)));
     json.scripts.forEach(path => lizard.populateMaps(path));
+  }
+
+  if (Array.isArray(json.htmlPages) && 
+      (typeof json.urlPrefixes === "object") &&
+      (json.urlPrefixes !== null) &&
+      !Array.isArray(json.urlPrefixes)) {
+    await Promise.all(json.htmlPages.map(
+      htmlPath => lizard.parseHTMLApplication(htmlPath, json.urlPrefixes)
+    ));
   }
 
   const stackList = json.markAsync.map(params => lizard.getStacksOfFunction(
@@ -46,5 +58,8 @@ async function fixtureTest(fixture) {
 describe("Fixtures tests: ", function() {
   [
     "single-file",
+    /*
+    "directory-structure",
+    */
   ].forEach(fixture => it(fixture, async () => fixtureTest(fixture)));
 });

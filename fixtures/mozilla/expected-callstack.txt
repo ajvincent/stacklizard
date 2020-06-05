@@ -5,7 +5,7 @@
         - A.prototype.a(), a/a.jsm: async 7, await 8
           - nsITestB, a/nsITestB.idl: Promise 13
       - A(), a/a.jsm: async 3, await 4
-        - M, b/b.jsm: xpcom-contractID
+        - M, b/b.jsm: xpcom-contractID, instance error
         - M.c, b/b.jsm: await 5
         - nsITestA, a/nsITestA.idl: Promise 13
       - nsITestA, a/nsITestA.idl: Promise 18

@@ -4,5 +4,5 @@
       - A.prototype.b(), fixture.js: async 11, await 12
         - A.prototype.a(), fixture.js: async 7, await 8
       - A(), fixture.js: async 3, await 4
-        - B, fixture.js: await 47, instance
+        - B, fixture.js: await 47, instance error
     - A.prototype.p(), fixture.js: await 39

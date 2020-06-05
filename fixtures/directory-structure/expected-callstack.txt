@@ -4,8 +4,6 @@
       - A.prototype.b(), a/a.js: async 11, await 12
         - A.prototype.a(), a/a.js: async 7, await 8
       - A(), a/a.js: async 3, await 4
-        - B, b/b.js: await 1, instance
-          - B.c, b/b.html: await 26, handler
-          - B.d, b/b.html: await 28, handler
-        - C, b/b.html: await 12, listener
-          - C.b(), b/b.html: await 15, listener
+        - C, b/b.html#7: await 9, instance error
+        - (), b/b.html#7: async 8, await 9
+        - B, b/b.js: await 1, instance error

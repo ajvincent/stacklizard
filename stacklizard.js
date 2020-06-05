@@ -31,6 +31,9 @@ const espree = require("espree");
 const fs = require("fs").promises;
 const path = require("path");
 const acornWalk = require("acorn-walk");
+const EventEmitter = require("events");
+
+const HTMLDriver = require("./lib/html");
 
 /**
  * @private
@@ -40,12 +43,25 @@ const sourceOptions = {
   ecmaVersion: 2020,
 };
 
-/**
- * @private
- */
-const SYMBOLS = {
-  abortAcornWalk: Symbol("Abort acorn walk"),
-};
+function resolveURL(absolutePath, urlPrefixes) {
+  const entries = Object.entries(urlPrefixes);
+
+  const index = entries.findIndex(
+    ([key, value]) => (absolutePath.startsWith(key))
+  );
+  if (index === -1)
+    return absolutePath;
+
+  const [src, dst] = entries[index];
+  return absolutePath.replace(src, dst);
+}
+
+function getUniqueName(cachedURLs, name) {
+  let value = cachedURLs.get(name) || 0;
+  value++;
+  cachedURLs.set(name, value);
+  return `${name}#${value}`;
+}
 
 /**
  * The StackLizard tool itself.
@@ -101,8 +117,12 @@ function StackLizard(rootDir, options = {}) {
    * Probable instances of a constructor defined by name.
    * @private
    */
-  this.instanceNodes = new Map(/*
+  this.instanceNodesByName = new Map(/*
     name: node[]
+  */);
+
+  this.instancesOfCtor = new WeakMap(/*
+
   */);
 
   /**
@@ -114,7 +134,112 @@ function StackLizard(rootDir, options = {}) {
 
 StackLizard.prototype = {
   /**
-   * Read a JS file from the filesystem.
+   *
+   * @param {string} pathToFile
+   * @param {Object} urlPrefixes A key-value mapping of website prefixes to local file prefixes.
+   */
+  parseHTMLApplication: async function(pathToHTML, urlPrefixes = {}) {
+    let jsFilesExternal = [],
+        jsInlines = [],
+        htmlFiles = [pathToHTML];
+    const emitter = new EventEmitter;
+
+    let currentHTMLPath = "";
+    let baseURL = "";
+    {
+      const entries = Object.entries(urlPrefixes);
+      const index = entries.findIndex(([key, value]) => value === "");
+      if (index !== -1)
+        baseURL = entries[index][0];
+    }
+
+    const cachedURLs = new Map();
+
+    emitter.on("eventhandler", (name, location, attrValue) => {
+      name = getUniqueName(cachedURLs, `${currentHTMLPath}:${name}@${location.line}`);
+
+      jsInlines.push({
+        name,
+        line: location.line,
+        script: attrValue
+      });
+    });
+
+    emitter.on("loadscript", src => {
+      const base = path.join(baseURL, currentHTMLPath);
+      src = (new URL(src, base)).toString();
+      jsFilesExternal.push(src);
+    });
+
+    emitter.on("inlinescript", (location, contents) => {
+      const name = `${currentHTMLPath}#${location.line}`
+      jsInlines.push({
+        name,
+        line: location.line,
+        script: contents
+      });
+    });
+
+    emitter.on("loadframe", src => {
+      const base = path.join(baseURL, currentHTMLPath);
+      src = (new URL(src, base)).toString();
+      htmlFiles.push(src);
+    });
+
+    while (true) {
+      if (jsInlines.length) {
+        const meta = jsInlines.shift();
+
+        this.parseJS(meta.name, meta.script);
+        this.populateMaps(meta.name, {
+          lineOffset: meta.line - 1,
+        });
+
+        continue;
+      }
+
+      if (jsFilesExternal.length) {
+        let absolutePath = jsFilesExternal.shift();
+        let pathToFile = resolveURL(absolutePath, urlPrefixes);
+
+        if (pathToFile) {
+          await this.parseJSFile(pathToFile);
+          this.populateMaps(pathToFile);
+        }
+
+        continue;
+      }
+
+      if (htmlFiles.length) {
+        currentHTMLPath = htmlFiles.shift();
+        await this.parseHTMLFile(currentHTMLPath, emitter);
+        currentHTMLPath = "";
+
+        continue;
+      }
+
+      break;
+    }
+  },
+
+  /**
+   *
+   * @param {string} pathToFile The relative path to the HTML file.
+   * @private
+   */
+  parseHTMLFile: async function(pathToFile, emitter) {
+    if (this.sources.has(pathToFile))
+      return this.sources.get(pathToFile);
+
+    const fullPath = path.join(process.cwd(), this.rootDir, pathToFile);
+    const markup = await fs.readFile(fullPath, { encoding: "UTF-8" } );
+
+    const driver = new HTMLDriver(emitter);
+    driver.parseHTML(markup);
+  },
+
+  /**
+   * Parse a JS file from the filesystem.
    * @param {string} pathToFile The relative path to the file.
    *
    * @returns An AST from ESPree.parse().
@@ -125,9 +250,24 @@ StackLizard.prototype = {
       return this.sources.get(pathToFile);
 
     const fullPath = path.join(process.cwd(), this.rootDir, pathToFile);
-    const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
-    const ast = espree.parse(source, sourceOptions);
-    this.sources.set(pathToFile, ast);
+    const code = await fs.readFile(fullPath, { encoding: "UTF-8" } );
+    return this.parseJS(pathToFile, code);
+  },
+
+  /**
+   * Parse a JS file already in memory.
+   * @param {string} fileName The name to associate with the code.
+   * @param {string} code     The source code to parse.
+   *
+   * @returns An AST from ESPree.parse().
+   * @private
+   */
+  parseJS: function(fileName, code) {
+    if (this.sources.has(fileName))
+      return this.sources.get(fileName);
+
+    const ast = espree.parse(code, sourceOptions);
+    this.sources.set(fileName, ast);
     return ast;
   },
 
@@ -143,40 +283,48 @@ StackLizard.prototype = {
    */
   populateMaps: function(pathToFile, corrections = {}) {
     const ast = this.sources.get(pathToFile);
+    const lineOffset = ("lineOffset" in corrections) ? corrections.lineOffset : 0;
     // Warning:  this is a post-order search, not pre-order as you might expect.
+
+    const nodeList = [];
     acornWalk.fullAncestor(
       ast,
       (node, ancestors) => {
-        // Apply corrections.
+        nodeList.push(node);
 
         // Cache the ancestors.
         ancestors = ancestors.slice(0);
         ancestors.reverse();
         this.ancestorMap.set(node, ancestors);
-
-        // Each node has its place on a line.
-        const lineNumber = node.loc.start.line;
-        const key = pathToFile + ":" + lineNumber;
-        if (!this.nodesByLine.has(key))
-          this.nodesByLine.set(key, []);
-        this.nodesByLine.get(key).unshift(node);
-
-        // We know which file each node came from.
-        this.nodeToFileName.set(node, pathToFile);
-
-        // Constructors and instances of constructors.
-        if ((node.type === "FunctionDeclaration") &&
-            !this.constructorNodesByName.has(node.id.name)) {
-          this.constructorNodesByName.set(node.id.name, node);
-        }
-        else if (node.type === "NewExpression") {
-          const ctor = node.callee.name;
-          if (!this.instanceNodes.has(ctor))
-            this.instanceNodes.set(ctor, []);
-          this.instanceNodes.get(ctor).push(node);
-        }
       }
     );
+
+    nodeList.forEach(node => {
+      // Apply corrections.
+      node.line = node.loc.start.line + lineOffset;
+      node.file = pathToFile;
+
+      // Each node has its place on a line.
+      const key = pathToFile + ":" + node.line;
+      if (!this.nodesByLine.has(key))
+        this.nodesByLine.set(key, []);
+      this.nodesByLine.get(key).unshift(node);
+
+      // We know which file each node came from.
+      this.nodeToFileName.set(node, pathToFile);
+
+      // Constructors and instances of constructors.
+      if ((node.type === "FunctionDeclaration") &&
+          !this.constructorNodesByName.has(node.id.name)) {
+        this.constructorNodesByName.set(node.id.name, node);
+      }
+      else if (node.type === "NewExpression") {
+        const ctor = node.callee.name;
+        if (!this.instanceNodesByName.has(ctor))
+          this.instanceNodesByName.set(ctor, []);
+        this.instanceNodesByName.get(ctor).push(node);
+      }
+    });
   },
 
   /**
@@ -212,8 +360,6 @@ StackLizard.prototype = {
       node: ancestors.shift(),
       name: "",
       directParentNode: null,
-      directParentName: "",
-      ctorParentName: "",
     }
 
     // What name is the function assigned to?
@@ -224,11 +370,17 @@ StackLizard.prototype = {
         rv.name = node.key.name;
       }
       else if ((node.type === "Program") && (rv.node.type === "FunctionDeclaration")) {
-        rv.name = rv.node.id.name;
+        const id = rv.node.id;
+        rv.name = id ? id.name : "(lambda)";
+        return rv;
+      }
+      else if (node.type === "CallExpression") {
+        const id = rv.node.id;
+        rv.name = id ? id.name : "(lambda)";
         return rv;
       }
       else {
-        throw new Error(`Unknown name for the desired function at ${rv.node.loc.start.line}`);
+        throw new Error(`Unknown name for the desired function at ${rv.node.line}`);
       }
     }
 
@@ -239,7 +391,7 @@ StackLizard.prototype = {
         rv.directParentNode = node;
       }
       else {
-        throw new Error(`Unknown parent object for the desired method ${rv.name} at ${rv.node.loc.start.line}`);
+        throw new Error(`Unknown parent object for the desired method ${rv.name} at ${rv.node.line}`);
       }
     }
 
@@ -266,6 +418,9 @@ StackLizard.prototype = {
     needleNode
   )
   {
+    if (!propertyType) // lambda functions can have an undefined type
+      return [];
+
     // Warning:  this is a post-order search, not pre-order as you might expect.
     // ESPree is driving the search, so we can't do anything about that here.
 
@@ -315,16 +470,18 @@ StackLizard.prototype = {
     if (haystackNode && (haystackNode.type === "ObjectExpression"))
       valueNodes = haystackNode.properties.map((n) => n.value);
 
-    // instances of a constructor.
+    // instances of a constructor.  Async constructors are illegal, so this is an error.
     else if (this.constructorNodesSet.has(needleNode)) {
-      valueNodes = this.instanceNodes.get(needleNode.id.name);
+      debugger;
+      this.instancesOfCtor.set(needleNode, this.instanceNodesByName.get(needleNode.id.name));
+      valueNodes = [];
     }
 
     // Top-level functions, often constructors.
     else if (isFunctionDecl)
       valueNodes = [haystackNode.body];
     else
-      throw new Error(`Unknown haystackNode type: ${haystackNode.type} for line ${haystackNode.loc.start.line}`);
+      throw new Error(`Unknown haystackNode type: ${haystackNode.type} for line ${haystackNode.line}`);
 
     const awaitNodes = [/* node ... */ ];
     // XXX ajvincent this should be valueNodes.forEach().
@@ -383,8 +540,8 @@ StackLizard.prototype = {
     const awaitNodeMap = new WeakMap(/* node: node[] */);
 
     for (let i = 0; i < matchedNodes.length; i++) {
-      const currentNode = matchedNodes[i];
-      const ancestors = this.ancestorMap.get(currentNode);
+      const asyncNode = matchedNodes[i];
+      const ancestors = this.ancestorMap.get(asyncNode);
       const propData = this.definedOn(ancestors);
 
       // Ordinary methods, getters and setters
@@ -412,13 +569,7 @@ StackLizard.prototype = {
         }
       }
 
-      // Instances
-      if (this.constructorNodesSet.has(currentNode)) {
-        const ctorName = currentNode.id.name;
-        awaitNodes = awaitNodes.concat(this.instanceNodes.get(ctorName));
-      }
-
-      awaitNodeMap.set(currentNode, awaitNodes.slice(0));
+      awaitNodeMap.set(asyncNode, awaitNodes.slice(0));
 
       // Look for more nodes to mark async and add to our search space.
       awaitNodes.forEach((awaitNode) => {
@@ -525,7 +676,7 @@ StackLizard.prototype = {
       const fileLine = this.nodeToFileName.get(currentNode);
       results += ", " + fileLine;
     }
-    results += `: async ${currentNode.loc.start.line}\n`;
+    results += `: async ${currentNode.line}\n`;
 
     // Recursive search.
     const awaitNodes = awaitNodeMap.get(currentNode);
@@ -575,7 +726,7 @@ StackLizard.prototype = {
         results += `${this.getFullName(ancestors)}`;
     }
 
-    if (asyncNode)
+    if (awaitNode.type !== "NewExpression")
       results += "()";
 
     {
@@ -585,10 +736,10 @@ StackLizard.prototype = {
     results += ": ";
 
     if (asyncNode && !asyncNode.async) {
-      results += `async ${asyncNode.loc.start.line}, `;
+      results += `async ${asyncNode.line}, `;
     }
 
-    results += `await ${awaitNode.loc.start.line}`;
+    results += `await ${awaitNode.line}`;
 
     // Getter and setter annotations
     if (asyncIndex < ancestors.length - 1) {
@@ -600,12 +751,12 @@ StackLizard.prototype = {
         results += ", setter";
     }
 
-    // Instance annotation
-    if (awaitNode.type === "NewExpression") {
-      results += ", instance";
-    }
-
     results += '\n';
+
+    // Instance annotation
+    if (this.instancesOfCtor.has(asyncNode)) {
+      results += this.serializeAsyncInstanceNodes(prefix + "  ", asyncNode);
+    }
 
     // Recursive search.
     if (asyncNode) {
@@ -621,6 +772,12 @@ StackLizard.prototype = {
     }
 
     return results;
+  },
+
+  serializeAsyncInstanceNodes(prefix, asyncNode) {
+    return this.instancesOfCtor.get(asyncNode).map(
+      instance => `${prefix}- await ${instance.line}, instance error\n`
+    );
   },
 
   /**

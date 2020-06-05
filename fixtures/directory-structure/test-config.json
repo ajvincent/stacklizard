@@ -1,0 +1,17 @@
+{
+  "htmlPages": [
+    "b/b.html"
+  ],
+
+  "urlPrefixes": {
+    "http://localhost:800/test/": ""
+  },
+
+  "markAsync": [
+    {
+      "path": "a/a.js",
+      "line": 26,
+      "functionIndex": 0
+    }
+  ]
+}

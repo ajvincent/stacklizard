@@ -1,4 +1,6 @@
 {
+  "debug": true,
+
   "scripts": [
     "fixture.js"
   ],
