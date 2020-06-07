@@ -4,6 +4,7 @@
 const fs = require("fs").promises;
 const path = require("path");
 const JSDriver = require("./drivers/javascript");
+const serializer = require("./serializers/markdown");
 
 (async function() {
   const basePath = path.join(process.cwd(), "fixtures/two-functions-minimal/");
@@ -22,11 +23,7 @@ const JSDriver = require("./drivers/javascript");
   const startAsync = jsDriver.functionNodeFromLine("b.js", 1);
   const asyncRefs = jsDriver.getAsyncStacks(startAsync);
 
-  {
-    console.log(`- ${startAsync.id.name}() async ${jsDriver.fileAndLine(startAsync)}`);
-    const [{ awaitNode, asyncNode }] = asyncRefs.get(startAsync);
-    console.log(`  - ${asyncNode.id.name}() await ${jsDriver.fileAndLine(awaitNode)}, async ${jsDriver.fileAndLine(asyncNode)}`);
-  }
+  console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
 
   return null;
 })();

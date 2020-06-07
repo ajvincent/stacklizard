@@ -234,15 +234,21 @@ JSDriver.prototype = {
     const markedAsyncNodes = [functionNode];
     const scheduledAsyncNodes = new Set(markedAsyncNodes);
 
-    const asyncReferences = new WeakMap(/*
+    const asyncReferences = new Map(/*
       async node: [
         {
-          await: node that references the key async node,
-          async: function that is an ancestor of the await node
+          awaitNode: node that references the key async node,
+          asyncNode: function that is an ancestor of the await node,
+          asyncName: name of the ancestor function (hopefully jsDriver can provide this via a method)
         },
         ...
       ]
     */);
+
+    asyncReferences.set(null, [{
+      asyncNode: functionNode,
+      asyncName: functionNode.id.name,
+    }]);
 
     for (let i = 0; i < markedAsyncNodes.length; i++) {
       const asyncNode = markedAsyncNodes[i];
@@ -267,6 +273,7 @@ JSDriver.prototype = {
         if (!nextAsyncNode)
           return;
         refData.asyncNode = nextAsyncNode;
+        refData.asyncName = nextAsyncNode.id.name;
 
         if (scheduledAsyncNodes.has(nextAsyncNode))
           return;
