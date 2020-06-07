@@ -94,6 +94,8 @@ function JSDriver() {
   this.nodeToEnclosingFunction = new WeakMap(/*
     node: Function node
   */);
+
+  this.currentScope = null;
 }
 JSDriver.prototype = {
   appendSource: function(pathToFile, firstLineInFile, source) {
@@ -127,9 +129,29 @@ JSDriver.prototype = {
 
     const listeners = new TraverseListeners;
 
-    // line mapping
-    const mappingList = this.lineMapping.slice();
+    listeners.append(this.lineMappingListener());
+
     listeners.append({
+      enter: (node) => this.nodeToScope.set(node, this.currentScope)
+    });
+
+    listeners.append({
+      enter: (node, parent) => {
+        if (node.type === "CallExpression") {
+          this.enterCallExpression(node, parent);
+        }
+      }
+    });
+
+    listeners.append(this.functionStackListener());
+    listeners.append(this.currentScopeListener(ast, scopeManager));
+
+    estraverse.traverse(ast, listeners);
+  },
+
+  lineMappingListener: function() {
+    const mappingList = this.lineMapping.slice();
+    return {
       enter: (node, parent) => {
         const parseLine = node.loc.start.line;
         while (parseLine >= mappingList[0].endSourceLine)
@@ -143,22 +165,12 @@ JSDriver.prototype = {
           this.nodesByLine.set(hash, []);
         this.nodesByLine.get(hash).push(node);
       }
-    });
+    };
+  },
 
-    listeners.append({
-      enter: (node) => this.nodeToScope.set(node, currentScope)
-    });
-
-    listeners.append({
-      enter: (node, parent) => {
-        if (node.type === "CallExpression") {
-          this.enterCallExpression(node, parent);
-        }
-      }
-    });
-
+  functionStackListener: function() {
     var functionStack = [];
-    listeners.append({
+    return {
       enter: (node) => {
         if (isFunctionNode(node)) {
           functionStack.unshift(node);
@@ -173,25 +185,25 @@ JSDriver.prototype = {
           functionStack.shift();
         }
       }
-    });
+    };
+  },
 
-    var currentScope = scopeManager.acquire(ast);
-    listeners.append({
+  currentScopeListener: function(ast, scopeManager) {
+    this.currentScope = scopeManager.acquire(ast);
+    return {
       enter: (node, parent) => {
         if (isFunctionNode(node)) {
           // get current function scope
-          currentScope = scopeManager.acquire(node);
+          this.currentScope = scopeManager.acquire(node);
         }
       },
       leave: (node, parent) => {
         if (isFunctionNode(node)) {
           // set to parent scope
-          currentScope = currentScope.upper;
+          this.currentScope = this.currentScope.upper;
         }
       }
-    });
-
-    estraverse.traverse(ast, listeners);
+    };
   },
 
   enterCallExpression: function(node, parent) {
