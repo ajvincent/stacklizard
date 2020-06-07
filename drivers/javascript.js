@@ -95,6 +95,8 @@ function JSDriver() {
     node: Function node
   */);
 
+  this.nodesInAwaitCall = new WeakSet(/* node */);
+
   this.currentScope = null;
 }
 JSDriver.prototype = {
@@ -118,7 +120,7 @@ JSDriver.prototype = {
         mappingList.shift();
 
       const printLine = parseLine - mappingList[0].startSourceLine + mappingList[0].firstLineInFile;
-      rv += `${mappingList[0].pathToFile}:${printLine.toString()} ${this.parsingBuffer[parseLine - 1]}\n`;
+      rv += `${mappingList[0].pathToFile}:${printLine.toString().padStart(4, '0')} ${this.parsingBuffer[parseLine - 1]}\n`;
     }
     return rv;
   },
@@ -144,6 +146,7 @@ JSDriver.prototype = {
     });
 
     listeners.append(this.functionStackListener());
+    listeners.append(this.awaitExpressionListener());
     listeners.append(this.currentScopeListener(ast, scopeManager));
 
     estraverse.traverse(ast, listeners);
@@ -188,6 +191,23 @@ JSDriver.prototype = {
     };
   },
 
+  awaitExpressionListener: function() {
+    var awaitCount = 0;
+    return {
+      enter: (node) => {
+        if (node.type === "AwaitExpression")
+          awaitCount++;
+        else if (awaitCount) {
+          this.nodesInAwaitCall.add(node);
+        }
+      },
+      leave: (node) => {
+        if (node.type === "AwaitExpression")
+          awaitCount--;
+      }
+    }
+  },
+
   currentScopeListener: function(ast, scopeManager) {
     this.currentScope = scopeManager.acquire(ast);
     return {
@@ -206,14 +226,29 @@ JSDriver.prototype = {
     };
   },
 
-  enterCallExpression: function(node, parent) {
-    const name = node.callee.name;
+  enterCallExpression: function(node) {
+    const name = this.getNodeName(node.callee);
     if (!name)
       throw new Error("enterCallExpression missing name");
 
     if (!this.referencesByName.get(name))
       this.referencesByName.set(name, []);
     this.referencesByName.get(name).push(node);
+  },
+
+  getNodeName: function(node) {
+    if (node.type.startsWith("Function") && node.id)
+      return this.getNodeName(node.id);
+
+    if (node.type === "Identifier")
+      return node.name;
+
+    if (node.type === "MemberExpression")
+      return `${this.getNodeName(node.object)}:${this.getNodeName(node.property)}`;
+
+    throw new Error(
+      `Unknown node type: ${node.type} for ${this.fileAndLine(node)}@${node.loc.start.column}`
+    );
   },
 
   /**
@@ -259,13 +294,13 @@ JSDriver.prototype = {
 
     asyncReferences.set(null, [{
       asyncNode: functionNode,
-      asyncName: functionNode.id.name,
+      asyncName: this.getNodeName(functionNode),
     }]);
 
     for (let i = 0; i < markedAsyncNodes.length; i++) {
       const asyncNode = markedAsyncNodes[i];
 
-      const name = asyncNode.id.name;
+      const name = this.getNodeName(asyncNode);
       if (!name) {
         throw new Error("don't have the name for this node?");
       }
@@ -284,8 +319,8 @@ JSDriver.prototype = {
         const nextAsyncNode = this.nodeToEnclosingFunction.get(awaitNode);
         if (!nextAsyncNode)
           return;
-        refData.asyncNode = nextAsyncNode;
-        refData.asyncName = nextAsyncNode.id.name;
+        refData.asyncNode = nextAsyncNode.async ? null : nextAsyncNode;
+        refData.asyncName = this.getNodeName(nextAsyncNode);
 
         if (scheduledAsyncNodes.has(nextAsyncNode))
           return;
@@ -307,9 +342,12 @@ JSDriver.prototype = {
 
     // direct references
     {
-      const maybeAwaitNodes = this.referencesByName.get(asyncNode.id.name) || [];
+      const maybeAwaitNodes = this.referencesByName.get(this.getNodeName(asyncNode)) || [];
 
       rv.push(maybeAwaitNodes.filter((maybe) => {
+        if (this.nodesInAwaitCall.has(maybe))
+          return false;
+
         let awaitScope = this.nodeToScope.get(maybe);
         while (awaitScope) {
           // to do:  return false if awaitScope has a matching name
