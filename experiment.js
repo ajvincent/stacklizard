@@ -31,8 +31,13 @@ const serializer = require("./serializers/markdown");
 
   if (true) {
     await [
-      ["top-functions", 19]
-    ].forEach(async function([testDir, lineNumber]) {
+      ["top-functions", 19],
+      ["name-collision", 9],
+      /*
+      ["prototype-define", 26],
+      ["prototype-assign", -2], // line number unclear
+      */
+    ].forEach(async function([testDir, lineNumber, ...debugLines]) {
       const pathToFile = path.join(process.cwd(), `fixtures/${testDir}/fixture.js`);
       const source = await fs.readFile(pathToFile, { encoding: "UTF-8" });
 
@@ -42,7 +47,8 @@ const serializer = require("./serializers/markdown");
       console.log(jsDriver.serializeSourceMapping());
 
       if (testDir === debugDir)
-        debugger;
+        debugLines.forEach(line => jsDriver.debugByLine("fixture.js", line));
+
       jsDriver.parseSources();
 
       const startAsync = jsDriver.functionNodeFromLine("fixture.js", lineNumber);
@@ -51,4 +57,4 @@ const serializer = require("./serializers/markdown");
       console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
     });
   }
-})("top-functions");
+})("prototype-define");

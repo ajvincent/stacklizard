@@ -98,6 +98,8 @@ function JSDriver() {
   this.nodesInAwaitCall = new WeakSet(/* node */);
 
   this.currentScope = null;
+
+  this.debugByLineListeners = [];
 }
 JSDriver.prototype = {
   appendSource: function(pathToFile, firstLineInFile, source) {
@@ -136,6 +138,8 @@ JSDriver.prototype = {
     listeners.append({
       enter: (node) => this.nodeToScope.set(node, this.currentScope)
     });
+
+    this.debugByLineListeners.forEach(listener => listeners.append(listener));
 
     listeners.append({
       enter: (node, parent) => {
@@ -226,6 +230,15 @@ JSDriver.prototype = {
     };
   },
 
+  debugByLine: function(file, line) {
+    this.debugByLineListeners.push({
+      enter: (node) => {
+        if ((node.file === file) && (node.line === line))
+          debugger;
+      }
+    });
+  },
+
   enterCallExpression: function(node) {
     const name = this.getNodeName(node.callee);
     if (!name)
@@ -237,8 +250,9 @@ JSDriver.prototype = {
   },
 
   getNodeName: function(node) {
-    if (node.type.startsWith("Function") && node.id)
-      return this.getNodeName(node.id);
+    if (node.type.startsWith("Function")) {
+      return node.id ? this.getNodeName(node.id) : "(lambda)";
+    }
 
     if (node.type === "Identifier")
       return node.name;
@@ -350,9 +364,6 @@ JSDriver.prototype = {
 
         let awaitScope = this.nodeToScope.get(maybe);
         while (awaitScope) {
-          // to do:  return false if awaitScope has a matching name
-          // rewrite this to be if (awaitScope has name) return awaitScope === asyncScope;
-
           if (awaitScope === asyncScope)
             return true;
 
