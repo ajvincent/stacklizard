@@ -19,9 +19,10 @@
   },
   "homepage": "https://github.com/ajvincent/stacklizard#readme",
   "dependencies": {
-    "acorn-walk": "^7.1.1",
     "argparse": "^1.0.10",
+    "eslint-scope": "^5.1.0",
     "espree": "^7.0.0",
+    "estraverse": "^5.1.0",
     "htmlparser2": "^3.10.1"
   },
   "devDependencies": {

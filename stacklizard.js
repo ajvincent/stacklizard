@@ -30,7 +30,8 @@
 const espree = require("espree");
 const fs = require("fs").promises;
 const path = require("path");
-const acornWalk = require("acorn-walk");
+const eslintScope = require('eslint-scope');
+const estraverse = require('estraverse');
 
 /**
  * @private
