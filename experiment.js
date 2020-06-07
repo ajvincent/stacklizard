@@ -6,24 +6,49 @@ const path = require("path");
 const JSDriver = require("./drivers/javascript");
 const serializer = require("./serializers/markdown");
 
-(async function() {
-  const basePath = path.join(process.cwd(), "fixtures/two-functions-minimal/");
-  async function getFile(pathToFile) {
-    return fs.readFile(path.join(basePath, pathToFile), { encoding: "UTF-8" });
+(async function(debugDir) {
+  if (true) {
+    const basePath = path.join(process.cwd(), "fixtures/two-functions-minimal/");
+    async function getFile(pathToFile) {
+      return fs.readFile(path.join(basePath, pathToFile), { encoding: "UTF-8" });
+    }
+
+    const jsDriver = new JSDriver();
+  
+    jsDriver.appendSource("a.js", 1, (await getFile("a.js")));
+    jsDriver.appendSource("b.js", 1, (await getFile("b.js")));
+    console.log(jsDriver.serializeSourceMapping());
+
+    if (debugDir === "two-functions-minimal")
+      debugger;
+    jsDriver.parseSources();
+  
+    const startAsync = jsDriver.functionNodeFromLine("b.js", 1);
+    const asyncRefs = jsDriver.getAsyncStacks(startAsync);
+  
+    console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
   }
 
-  const jsDriver = new JSDriver();
+  if (true) {
+    await [
+      ["top-functions", 19]
+    ].forEach(async function([testDir, lineNumber]) {
+      const pathToFile = path.join(process.cwd(), `fixtures/${testDir}/fixture.js`);
+      const source = await fs.readFile(pathToFile, { encoding: "UTF-8" });
 
-  jsDriver.appendSource("a.js", 1, (await getFile("a.js")));
-  jsDriver.appendSource("b.js", 1, (await getFile("b.js")));
-  console.log(jsDriver.serializeSourceMapping());
+      const jsDriver = new JSDriver();
 
-  jsDriver.parseSources();
+      jsDriver.appendSource("fixture.js", 1, source);
+      console.log(jsDriver.serializeSourceMapping());
 
-  const startAsync = jsDriver.functionNodeFromLine("b.js", 1);
-  const asyncRefs = jsDriver.getAsyncStacks(startAsync);
+      if (testDir === debugDir)
+        debugger;
+      jsDriver.parseSources();
 
-  console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
+      const startAsync = jsDriver.functionNodeFromLine("fixture.js", lineNumber);
+      const asyncRefs = jsDriver.getAsyncStacks(startAsync);
 
-  return null;
-})();
+      console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
+    });
+  }
+})("top-functions");
