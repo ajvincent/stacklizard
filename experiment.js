@@ -33,8 +33,11 @@ const serializer = require("./serializers/markdown");
     await [
       ["top-functions", 19],
       ["name-collision", 9],
+      ["object-define", 6, 3],
       /*
-      ["prototype-define", 26],
+      ["prototype-define", 26, 4],
+      */
+      /*
       ["prototype-assign", -2], // line number unclear
       */
     ].forEach(async function([testDir, lineNumber, ...debugLines]) {
@@ -57,4 +60,4 @@ const serializer = require("./serializers/markdown");
       console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
     });
   }
-})("prototype-define");
+})("object-define");

@@ -62,6 +62,11 @@ function isFunctionNode(node) {
   return node.type.includes("Function");
 }
 
+function isMemberThis(node) {
+  return (node.type === "MemberExpression") &&
+         (node.object.type === "ThisExpression");
+}
+
 /**
  * @constructor
  */
@@ -93,6 +98,14 @@ function JSDriver() {
 
   this.nodeToEnclosingFunction = new WeakMap(/*
     node: Function node
+  */);
+
+  this.valueNodeToKeyNode = new WeakMap(/*
+    value node: key node
+  */);
+
+  this.valueNodeToThisNode = new WeakMap(/*
+    value node: A node that owns the method.
   */);
 
   this.nodesInAwaitCall = new WeakSet(/* node */);
@@ -139,16 +152,28 @@ JSDriver.prototype = {
       enter: (node) => this.nodeToScope.set(node, this.currentScope)
     });
 
+    listeners.append({
+      enter: (node, parent) => {
+        if (node.type === "AssignmentExpression") {
+          this.valueNodeToKeyNode.set(node.right, node.left);
+        }
+        else if (node.type === "Property") {
+          this.valueNodeToKeyNode.set(node.value, node.key);
+        }
+      }
+    });
+
     this.debugByLineListeners.forEach(listener => listeners.append(listener));
 
     listeners.append({
       enter: (node, parent) => {
         if (node.type === "CallExpression") {
-          this.enterCallExpression(node, parent);
+          this.referencesByNameListener(node, parent);
         }
       }
     });
 
+    listeners.append(this.thisListener());
     listeners.append(this.functionStackListener());
     listeners.append(this.awaitExpressionListener());
     listeners.append(this.currentScopeListener(ast, scopeManager));
@@ -175,21 +200,60 @@ JSDriver.prototype = {
     };
   },
 
+  thisListener: function() {
+    return {
+      enter: (node, parent) => {
+        if ((node.type === "MemberExpression") &&
+            (node.object.type === "ThisExpression")) {
+          const keyNode = this.valueNodeToKeyNode.get(this.functionStack[0]);
+          this.valueNodeToThisNode.set(node, keyNode);
+        }
+      }
+    }
+  },
+
+  /*
+  prototypeListener: function() {
+    this.prototypeStack = [];
+    return {
+      enter: (node, parent) => {
+        if (node.type === "AssignmentExpression") {
+          if ((node.left.type === "MemberExpression") &&
+              (node.left.property.type === "Identifier") &&
+              (node.left.property.name === "prototype")) {
+            this.prototypeStack.unshift(node.left.object);
+          }
+        }
+      },
+
+      leave: (node) => {
+        if (node.type === "AssignmentExpression") {
+          if ((node.left.type === "MemberExpression") &&
+              (node.left.property.type === "Identifier") &&
+              (node.left.property.name === "prototype")) {
+            this.prototypeStack.shift();
+          }
+        }
+      }
+    };
+  },
+  */
+
   functionStackListener: function() {
-    var functionStack = [];
+    this.functionStack = [];
     return {
       enter: (node) => {
         if (isFunctionNode(node)) {
-          functionStack.unshift(node);
+          this.functionStack.unshift(node);
         }
-        else if (functionStack.length) {
-          this.nodeToEnclosingFunction.set(node, functionStack[0]);
+        else if (this.functionStack.length) {
+          this.nodeToEnclosingFunction.set(node, this.functionStack[0]);
         }
       },
 
       leave: (node) => {
         if (isFunctionNode(node)) {
-          functionStack.shift();
+          this.functionStack.shift();
         }
       }
     };
@@ -232,14 +296,15 @@ JSDriver.prototype = {
 
   debugByLine: function(file, line) {
     this.debugByLineListeners.push({
-      enter: (node) => {
+      enter: (node, parent) => {
+        voidFunc(this);
         if ((node.file === file) && (node.line === line))
           debugger;
       }
     });
   },
 
-  enterCallExpression: function(node) {
+  referencesByNameListener: function(node) {
     const name = this.getNodeName(node.callee);
     if (!name)
       throw new Error("enterCallExpression missing name");
@@ -247,18 +312,47 @@ JSDriver.prototype = {
     if (!this.referencesByName.get(name))
       this.referencesByName.set(name, []);
     this.referencesByName.get(name).push(node);
+
+    let maybeThis = node.arguments.slice(0);
+    maybeThis.unshift(node.callee);
+    maybeThis.forEach(child => {
+      if (!isMemberThis(child))
+        return;
+      voidFunc(this);
+
+      const keyNode = this.valueNodeToThisNode.get(this.functionStack[0]);
+      let keyName;
+      if (keyNode.type === "MemberExpression")
+        keyName = this.getNodeName(keyNode.object);
+      else
+        throw new Error("Need a keyName method for type " + keyNode.type);
+
+      const scope = this.nodeToScope.get(keyNode);
+      const refNode = scope.set.get(keyName);
+      if (!refNode)
+        throw new Error("Need a way to get a variable for name " + keyName);
+
+      // do something with refNode and this.referencesByName
+    });
   },
 
   getNodeName: function(node) {
+    if (this.valueNodeToKeyNode.has(node))
+      return this.getNodeName(this.valueNodeToKeyNode.get(node));
+
     if (node.type.startsWith("Function")) {
       return node.id ? this.getNodeName(node.id) : "(lambda)";
     }
 
+    // Try to keep these type checks in alphabetical order.
     if (node.type === "Identifier")
       return node.name;
 
     if (node.type === "MemberExpression")
-      return `${this.getNodeName(node.object)}:${this.getNodeName(node.property)}`;
+      return `${this.getNodeName(node.object)}.${this.getNodeName(node.property)}`;
+
+    if (node.type === "ThisExpression")
+      return "this";
 
     throw new Error(
       `Unknown node type: ${node.type} for ${this.fileAndLine(node)}@${node.loc.start.column}`
@@ -354,10 +448,10 @@ JSDriver.prototype = {
     const asyncScope = this.nodeToScope.get(asyncNode);
     const rv = [];
 
+    const maybeAwaitNodes = this.referencesByName.get(this.getNodeName(asyncNode)) || [];
+
     // direct references
     {
-      const maybeAwaitNodes = this.referencesByName.get(this.getNodeName(asyncNode)) || [];
-
       rv.push(maybeAwaitNodes.filter((maybe) => {
         if (this.nodesInAwaitCall.has(maybe))
           return false;
