@@ -200,45 +200,6 @@ JSDriver.prototype = {
     };
   },
 
-  thisListener: function() {
-    return {
-      enter: (node, parent) => {
-        if ((node.type === "MemberExpression") &&
-            (node.object.type === "ThisExpression")) {
-          const keyNode = this.valueNodeToKeyNode.get(this.functionStack[0]);
-          this.valueNodeToThisNode.set(node, keyNode);
-        }
-      }
-    }
-  },
-
-  /*
-  prototypeListener: function() {
-    this.prototypeStack = [];
-    return {
-      enter: (node, parent) => {
-        if (node.type === "AssignmentExpression") {
-          if ((node.left.type === "MemberExpression") &&
-              (node.left.property.type === "Identifier") &&
-              (node.left.property.name === "prototype")) {
-            this.prototypeStack.unshift(node.left.object);
-          }
-        }
-      },
-
-      leave: (node) => {
-        if (node.type === "AssignmentExpression") {
-          if ((node.left.type === "MemberExpression") &&
-              (node.left.property.type === "Identifier") &&
-              (node.left.property.name === "prototype")) {
-            this.prototypeStack.shift();
-          }
-        }
-      }
-    };
-  },
-  */
-
   functionStackListener: function() {
     this.functionStack = [];
     return {
