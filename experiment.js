@@ -49,6 +49,7 @@ const serializer = require("./serializers/markdown");
       const jsDriver = new JSDriver();
 
       jsDriver.appendSource("fixture.js", 1, source);
+      console.log(testDir);
       console.log(jsDriver.serializeSourceMapping());
 
       if (testDir === debugDir)
@@ -56,10 +57,17 @@ const serializer = require("./serializers/markdown");
 
       jsDriver.parseSources();
 
+      if (testDir === "object-define-name-mismatch") {
+        const ignorable = jsDriver.nodeIndexByLineAndFilter(
+          "fixture.js", 3, 0, n => n.type === "CallExpression"
+        );
+        jsDriver.markIgnored(ignorable);
+      }
+
       const startAsync = jsDriver.functionNodeFromLine("fixture.js", lineNumber);
       const asyncRefs = jsDriver.getAsyncStacks(startAsync);
 
       console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
     });
   }
-})("object-define");
+})("object-define-name-mismatch");

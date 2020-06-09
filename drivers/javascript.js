@@ -108,6 +108,8 @@ function JSDriver() {
     value node: A node that owns the method.
   */);
 
+  this.ignoredNodes = new WeakSet();
+
   this.nodesInAwaitCall = new WeakSet(/* node */);
 
   this.currentScope = null;
@@ -138,6 +140,10 @@ JSDriver.prototype = {
       rv += `${mappingList[0].pathToFile}:${printLine.toString().padStart(4, '0')} ${this.parsingBuffer[parseLine - 1]}\n`;
     }
     return rv;
+  },
+
+  markIgnored: function(node) {
+    this.ignoredNodes.add(node);
   },
 
   parseSources: function() {
@@ -173,7 +179,6 @@ JSDriver.prototype = {
       }
     });
 
-    listeners.append(this.thisListener());
     listeners.append(this.functionStackListener());
     listeners.append(this.awaitExpressionListener());
     listeners.append(this.currentScopeListener(ast, scopeManager));
@@ -270,6 +275,9 @@ JSDriver.prototype = {
     if (!name)
       throw new Error("enterCallExpression missing name");
 
+    if (this.ignoredNodes.has(node))
+      return;
+
     if (!this.referencesByName.get(name))
       this.referencesByName.set(name, []);
     this.referencesByName.get(name).push(node);
@@ -298,6 +306,15 @@ JSDriver.prototype = {
     );
   },
 
+  nodeIndexByLineAndFilter: function(pathToFile, lineNumber, index, filter) {
+    const key = pathToFile + ":" + lineNumber;
+    let nodeList = this.nodesByLine.get(key);
+    if (!nodeList)
+      throw new Error("No functions found at " + key);
+    nodeList = nodeList.filter(filter);
+    return nodeList[index] || null;
+  },
+
   /**
    * Find a particular FunctionExpression node from a given file and line.
    * @param {string} pathToFile    The relative file path.
@@ -310,12 +327,7 @@ JSDriver.prototype = {
    * @private
    */
   functionNodeFromLine: function(pathToFile, lineNumber, functionIndex = 0) {
-    const key = pathToFile + ":" + lineNumber;
-    let nodeList = this.nodesByLine.get(key);
-    if (!nodeList)
-      throw new Error("No functions found at " + key);
-    nodeList = nodeList.filter(isFunctionNode);
-    return nodeList[functionIndex] || null;
+    return this.nodeIndexByLineAndFilter(pathToFile, lineNumber, functionIndex, isFunctionNode);
   },
 
   /**
@@ -346,6 +358,8 @@ JSDriver.prototype = {
 
     for (let i = 0; i < markedAsyncNodes.length; i++) {
       const asyncNode = markedAsyncNodes[i];
+      if (this.ignoredNodes.has(asyncNode))
+        continue;
 
       const name = this.getNodeName(asyncNode);
       if (!name) {
@@ -360,11 +374,14 @@ JSDriver.prototype = {
       asyncReferences.set(asyncNode, references);
 
       awaitNodes.forEach((awaitNode) => {
+        if (this.ignoredNodes.has(awaitNode))
+          return;
+
         const refData = { awaitNode };
         references.push(refData);
 
         const nextAsyncNode = this.nodeToEnclosingFunction.get(awaitNode);
-        if (!nextAsyncNode)
+        if (!nextAsyncNode || this.ignoredNodes.has(nextAsyncNode))
           return;
         refData.asyncNode = nextAsyncNode.async ? null : nextAsyncNode;
         refData.asyncName = this.getNodeName(nextAsyncNode);
