@@ -312,28 +312,6 @@ JSDriver.prototype = {
     if (!this.referencesByName.get(name))
       this.referencesByName.set(name, []);
     this.referencesByName.get(name).push(node);
-
-    let maybeThis = node.arguments.slice(0);
-    maybeThis.unshift(node.callee);
-    maybeThis.forEach(child => {
-      if (!isMemberThis(child))
-        return;
-      voidFunc(this);
-
-      const keyNode = this.valueNodeToThisNode.get(this.functionStack[0]);
-      let keyName;
-      if (keyNode.type === "MemberExpression")
-        keyName = this.getNodeName(keyNode.object);
-      else
-        throw new Error("Need a keyName method for type " + keyNode.type);
-
-      const scope = this.nodeToScope.get(keyNode);
-      const refNode = scope.set.get(keyName);
-      if (!refNode)
-        throw new Error("Need a way to get a variable for name " + keyName);
-
-      // do something with refNode and this.referencesByName
-    });
   },
 
   getNodeName: function(node) {
@@ -349,7 +327,7 @@ JSDriver.prototype = {
       return node.name;
 
     if (node.type === "MemberExpression")
-      return `${this.getNodeName(node.object)}.${this.getNodeName(node.property)}`;
+      return this.getNodeName(node.property);
 
     if (node.type === "ThisExpression")
       return "this";
