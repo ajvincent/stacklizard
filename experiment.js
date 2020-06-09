@@ -33,7 +33,9 @@ const serializer = require("./serializers/markdown");
     await [
       ["top-functions", 19],
       ["name-collision", 9],
-      ["object-define", 6, 3],
+      ["object-define-this-match", 6],
+      ["object-define-name-match", 6],
+      ["object-define-name-mismatch", 6, 3],
       /*
       ["prototype-define", 26, 4],
       */
