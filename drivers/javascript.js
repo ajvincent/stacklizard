@@ -306,13 +306,22 @@ JSDriver.prototype = {
     );
   },
 
-  nodeIndexByLineAndFilter: function(pathToFile, lineNumber, index, filter) {
+  nodeByLineFilterIndex: function(pathToFile, lineNumber, index, filter) {
     const key = pathToFile + ":" + lineNumber;
     let nodeList = this.nodesByLine.get(key);
     if (!nodeList)
       throw new Error("No functions found at " + key);
     nodeList = nodeList.filter(filter);
     return nodeList[index] || null;
+  },
+
+  indexOfNodeOnLine: function(node) {
+    const key = node.file + ":" + node.line;
+    let nodeList = this.nodesByLine.get(key);
+    if (!nodeList)
+      throw new Error("No functions found at " + key);
+    nodeList = nodeList.filter(n => n.type === node.type);
+    return nodeList.indexOf(node);
   },
 
   /**
@@ -327,7 +336,7 @@ JSDriver.prototype = {
    * @private
    */
   functionNodeFromLine: function(pathToFile, lineNumber, functionIndex = 0) {
-    return this.nodeIndexByLineAndFilter(pathToFile, lineNumber, functionIndex, isFunctionNode);
+    return this.nodeByLineFilterIndex(pathToFile, lineNumber, functionIndex, isFunctionNode);
   },
 
   /**

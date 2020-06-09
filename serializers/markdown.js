@@ -23,21 +23,21 @@ MarkdownSerializer.prototype.appendNodes = function(indent, key)
     this.scheduledNodes.add(childData[i]);
 
   for (let i = 0; i < childData.length; i++)
-    rv += this.serializeNode(indent, childData[i]);
+    rv += this.serializeChildData(indent, childData[i]);
 
   return rv;
 };
 
-MarkdownSerializer.prototype.serializeNode = function(
+MarkdownSerializer.prototype.serializeChildData = function(
   indent,
   {awaitNode, asyncNode, asyncName}
 )
 {
   let rv = `${indent}- ${asyncName}()`;
   if (awaitNode)
-    rv += ", await " + this.jsDriver.fileAndLine(awaitNode);
+    rv += `, await ${this.serializeNode(awaitNode)}`;
   if (asyncNode)
-    rv += ", async " + this.jsDriver.fileAndLine(asyncNode);
+    rv += `, async ${this.serializeNode(asyncNode)}`;
   rv += "\n";
 
   if (asyncNode &&
@@ -47,6 +47,11 @@ MarkdownSerializer.prototype.serializeNode = function(
 
   return rv;
 };
+
+MarkdownSerializer.prototype.serializeNode = function(node)
+{
+  return `${this.jsDriver.fileAndLine(node)} ${node.type}[${this.jsDriver.indexOfNodeOnLine(node)}]`;
+}
 
 module.exports = function(root, asyncRefs, jsDriver, options)
 {

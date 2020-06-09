@@ -58,7 +58,7 @@ const serializer = require("./serializers/markdown");
       jsDriver.parseSources();
 
       if (testDir === "object-define-name-mismatch") {
-        const ignorable = jsDriver.nodeIndexByLineAndFilter(
+        const ignorable = jsDriver.nodeByLineFilterIndex(
           "fixture.js", 3, 0, n => n.type === "CallExpression"
         );
         jsDriver.markIgnored(ignorable);
