@@ -36,8 +36,13 @@ MarkdownSerializer.prototype.serializeChildData = function(
   let rv = `${indent}- ${asyncName}()`;
   if (awaitNode)
     rv += `, await ${this.serializeNode(awaitNode)}`;
-  if (asyncNode)
+  if (asyncNode) {
     rv += `, async ${this.serializeNode(asyncNode)}`;
+    if (this.jsDriver.accessorNodes.has(asyncNode)) {
+      rv += ", accessor";
+    }
+  }
+
   rv += "\n";
 
   if (asyncNode &&

@@ -92,9 +92,15 @@ function JSDriver() {
     node: scope
   */);
 
+  this.callsByName = new Map(/*
+    name: node
+  */);
+
   this.referencesByName = new Map(/*
     name: node
   */);
+
+  this.accessorNodes = new WeakSet(/* node */);
 
   this.nodeToEnclosingFunction = new WeakMap(/*
     node: Function node
@@ -165,6 +171,9 @@ JSDriver.prototype = {
         }
         else if (node.type === "Property") {
           this.valueNodeToKeyNode.set(node.value, node.key);
+          if (node.kind !== "init") {
+            this.accessorNodes.add(node.value);
+          }
         }
       }
     });
@@ -173,7 +182,9 @@ JSDriver.prototype = {
 
     listeners.append({
       enter: (node, parent) => {
-        if (node.type === "CallExpression") {
+        if (("id" in node) ||
+            (node.type === "CallExpression") ||
+            (node.type === "MemberExpression")) {
           this.referencesByNameListener(node, parent);
         }
       }
@@ -271,16 +282,20 @@ JSDriver.prototype = {
   },
 
   referencesByNameListener: function(node) {
-    const name = this.getNodeName(node.callee);
-    if (!name)
-      throw new Error("enterCallExpression missing name");
-
-    if (this.ignoredNodes.has(node))
+    const name = this.getNodeName(node);
+    if (this.ignoredNodes.has(node) || this.accessorNodes.has(node))
       return;
 
-    if (!this.referencesByName.get(name))
-      this.referencesByName.set(name, []);
-    this.referencesByName.get(name).push(node);
+    let map;
+    if (node.type === "CallExpression")
+      map = this.callsByName;
+    else {
+      map = this.referencesByName;
+    }
+
+    if (!map.get(name))
+      map.set(name, []);
+    map.get(name).push(node);
   },
 
   getNodeName: function(node) {
@@ -291,15 +306,18 @@ JSDriver.prototype = {
       return node.id ? this.getNodeName(node.id) : "(lambda)";
     }
 
-    // Try to keep these type checks in alphabetical order.
-    if (node.type === "Identifier")
-      return node.name;
-
-    if (node.type === "MemberExpression")
-      return this.getNodeName(node.property);
-
-    if (node.type === "ThisExpression")
-      return "this";
+    switch (node.type) {
+      case "CallExpression":
+        return this.getNodeName(node.callee);
+      case "Identifier":
+        return node.name;
+      case "MemberExpression":
+        return this.getNodeName(node.property);
+      case "ThisExpression":
+        return "this";
+      case "VariableDeclarator":
+        return this.getNodeName(node.id);
+    }
 
     throw new Error(
       `Unknown node type: ${node.type} for ${this.fileAndLine(node)}@${node.loc.start.column}`
@@ -413,7 +431,11 @@ JSDriver.prototype = {
     const asyncScope = this.nodeToScope.get(asyncNode);
     const rv = [];
 
-    const maybeAwaitNodes = this.referencesByName.get(this.getNodeName(asyncNode)) || [];
+    const asyncName = this.getNodeName(asyncNode);
+    let maybeAwaitNodes = this.callsByName.get(asyncName) || [];
+    if (this.accessorNodes.has(asyncNode)) {
+      maybeAwaitNodes = maybeAwaitNodes.concat(this.referencesByName.get(asyncName));
+    }
 
     // direct references
     {
