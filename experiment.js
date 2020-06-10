@@ -54,6 +54,8 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
 
     jsDriver.appendSource("a.js", 1, (await getFile("a.js")));
     jsDriver.appendSource("b.js", 1, (await getFile("b.js")));
+
+    console.log("two-functions-minimal");
     console.log(jsDriver.serializeSourceMapping());
 
     if (debugDir === "two-functions-minimal") {
@@ -86,8 +88,8 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
       ["object-assign-name-match", 6],
       ["object-assign-name-mismatch", 6],
       ["object-this-getter", 10, 3, 6],
+      ["prototype-define", 26, 3, 4],
       /*
-      ["prototype-define", 26, 15],
       ["prototype-assign", -2], // line number unclear
       */
     ].map(async data => {
@@ -101,4 +103,4 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
       }
     }));
   }
-})("object-this-getter");
+})("prototype-define");

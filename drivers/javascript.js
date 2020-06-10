@@ -49,12 +49,15 @@ TraverseListeners.prototype.append = function(listener) {
   this.listenersEnter.push(listener.enter || voidFunc);
   this.listenersLeave.unshift(listener.leave || voidFunc);
 };
+
 TraverseListeners.prototype.enter = function(node, parent) {
   this.listenersEnter.forEach(listener => listener(node, parent));
 };
+
 TraverseListeners.prototype.leave = function(node, parent) {
   this.listenersLeave.forEach(listener => listener(node, parent));
 };
+
 TraverseListeners.prototype.clear = function() {
   this.listenersEnter = [];
   this.listenersLeave = [];
@@ -62,6 +65,12 @@ TraverseListeners.prototype.clear = function() {
 
 function isFunctionNode(node) {
   return node.type.includes("Function");
+}
+
+function isPrototypeMember(node) {
+  return node.type === "MemberExpression" &&
+         node.property.type === "Identifier" &&
+         node.property.name === "prototype";
 }
 
 function isMemberThis(node) {
@@ -116,6 +125,10 @@ function JSDriver() {
     value node: A node that owns the method.
   */);
 
+  this.nodeToConstructorFunction = new WeakMap(/*
+    node: Function node
+  */);
+
   this.ignoredNodes = new Set();
 
   this.nodesInAwaitCall = new WeakSet(/* node */);
@@ -154,7 +167,6 @@ JSDriver.prototype = {
 
   parseSources: function() {
     const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
-
     const listeners = new TraverseListeners;
 
     // Prototype lookups may need this to complete before they run.
@@ -165,6 +177,8 @@ JSDriver.prototype = {
       estraverse.traverse(ast, listeners);
       listeners.clear();
     }
+
+    this.debugByLineListeners.forEach(listener => listeners.append(listener));
 
     // Second pass, gather our data.
     listeners.append({
@@ -181,7 +195,7 @@ JSDriver.prototype = {
       }
     });
 
-    this.debugByLineListeners.forEach(listener => listeners.append(listener));
+    listeners.append(this.prototypeListener());
 
     listeners.append({
       enter: (node, parent) => {
@@ -284,7 +298,25 @@ JSDriver.prototype = {
     });
   },
 
+  prototypeListener: function() {
+    this.prototypeStack = [];
+    return {
+      enter: (node, parent) => {
+        if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
+          this.prototypeStack.unshift(node.left.object);
+      },
+      leave: (node, parent) => {
+        if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
+          this.prototypeStack.shift();
+      }
+    };
+  },
+
   referencesByNameListener: function(node) {
+    if (this.prototypeStack.length) {
+      this.nodeToConstructorFunction.set(node, this.getCurrentConstructor());
+    }
+
     const name = this.getNodeName(node);
     if (this.ignoredNodes.has(node) || this.accessorNodes.has(node))
       return;
@@ -299,6 +331,19 @@ JSDriver.prototype = {
     if (!map.get(name))
       map.set(name, []);
     map.get(name).push(node);
+  },
+
+  getCurrentConstructor: function() {
+    const name = this.getNodeName(this.prototypeStack[0]);
+    const scope = this.nodeToScope.get(this.prototypeStack[0]);
+
+    while (scope && !scope.set.has(name))
+      scope = scope.upper;
+    if (!scope)
+      return;
+    const variable = scope.set.get(name);
+    const definition = variable.defs[0];
+    return definition.node;
   },
 
   getNodeName: function(node) {
@@ -407,14 +452,16 @@ JSDriver.prototype = {
         if (this.ignoredNodes.has(awaitNode))
           return;
 
-        const refData = { awaitNode };
+        const refData = {
+          awaitNode,
+          asyncName: this.getNodeName(awaitNode),
+        };
         references.push(refData);
 
         const nextAsyncNode = this.nodeToEnclosingFunction.get(awaitNode);
         if (!nextAsyncNode || this.ignoredNodes.has(nextAsyncNode))
           return;
         refData.asyncNode = nextAsyncNode.async ? null : nextAsyncNode;
-        refData.asyncName = this.getNodeName(nextAsyncNode);
 
         if (scheduledAsyncNodes.has(nextAsyncNode))
           return;
@@ -438,6 +485,13 @@ JSDriver.prototype = {
     let maybeAwaitNodes = this.callsByName.get(asyncName) || [];
     if (this.accessorNodes.has(asyncNode)) {
       maybeAwaitNodes = maybeAwaitNodes.concat(this.referencesByName.get(asyncName));
+    }
+
+    {
+      let ctorNode = this.nodeToConstructorFunction.get(asyncNode);
+      if (ctorNode) {
+        maybeAwaitNodes.push(ctorNode);
+      }
     }
 
     // direct references
