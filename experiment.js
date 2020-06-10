@@ -30,19 +30,22 @@ const serializer = require("./serializers/markdown");
   }
 
   if (true) {
-    await [
+    await Promise.all([
       ["top-functions", 19],
       ["name-collision", 9],
       ["object-define-this-match", 6],
       ["object-define-name-match", 6],
-      ["object-define-name-mismatch", 6, 3],
+      ["object-define-name-mismatch", 6],
+      ["object-assign-this-match", 6],
+      ["object-assign-name-match", 6],
+      ["object-assign-name-mismatch", 6],
       /*
       ["prototype-define", 26, 4],
       */
       /*
       ["prototype-assign", -2], // line number unclear
       */
-    ].forEach(async function([testDir, lineNumber, ...debugLines]) {
+    ].map(async function([testDir, lineNumber, ...debugLines]) {
       const pathToFile = path.join(process.cwd(), `fixtures/${testDir}/fixture.js`);
       const source = await fs.readFile(pathToFile, { encoding: "UTF-8" });
 
@@ -63,11 +66,17 @@ const serializer = require("./serializers/markdown");
         );
         jsDriver.markIgnored(ignorable);
       }
+      if (testDir === "object-assign-name-mismatch") {
+        const ignorable = jsDriver.nodeByLineFilterIndex(
+          "fixture.js", 3, 0, n => n.type === "CallExpression"
+        );
+        jsDriver.markIgnored(ignorable);
+      }
 
       const startAsync = jsDriver.functionNodeFromLine("fixture.js", lineNumber);
       const asyncRefs = jsDriver.getAsyncStacks(startAsync);
 
       console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
-    });
+    }));
   }
 })("object-define-name-mismatch");
