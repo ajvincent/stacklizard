@@ -40,11 +40,9 @@ const sourceOptions = {
 function voidFunc() {};
 
 function TraverseListeners() {
-  this.listenersEnter = [];
-  this.listenersLeave = [];
-
   this.enter = this.enter.bind(this);
   this.leave = this.leave.bind(this);
+  this.clear();
 }
 
 TraverseListeners.prototype.append = function(listener) {
@@ -56,6 +54,10 @@ TraverseListeners.prototype.enter = function(node, parent) {
 };
 TraverseListeners.prototype.leave = function(node, parent) {
   this.listenersLeave.forEach(listener => listener(node, parent));
+};
+TraverseListeners.prototype.clear = function() {
+  this.listenersEnter = [];
+  this.listenersLeave = [];
 };
 
 function isFunctionNode(node) {
@@ -118,8 +120,6 @@ function JSDriver() {
 
   this.nodesInAwaitCall = new WeakSet(/* node */);
 
-  this.currentScope = null;
-
   this.debugByLineListeners = [];
 }
 JSDriver.prototype = {
@@ -154,16 +154,17 @@ JSDriver.prototype = {
 
   parseSources: function() {
     const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
-    const scopeManager = eslintScope.analyze(ast, {ecmaVersion: 2020});
+    this.scopeManager = eslintScope.analyze(ast, {ecmaVersion: 2020});
 
     const listeners = new TraverseListeners;
 
+    // Prototype lookups may need this to complete before they run.
     listeners.append(this.lineMappingListener());
+    listeners.append(this.currentScopeListener(ast, this.scopeManager));
+    estraverse.traverse(ast, listeners);
+    listeners.clear();
 
-    listeners.append({
-      enter: (node) => this.nodeToScope.set(node, this.currentScope)
-    });
-
+    // Second pass, gather our data.
     listeners.append({
       enter: (node, parent) => {
         if (node.type === "AssignmentExpression") {
@@ -192,7 +193,6 @@ JSDriver.prototype = {
 
     listeners.append(this.functionStackListener());
     listeners.append(this.awaitExpressionListener());
-    listeners.append(this.currentScopeListener(ast, scopeManager));
 
     estraverse.traverse(ast, listeners);
   },
@@ -254,18 +254,19 @@ JSDriver.prototype = {
   },
 
   currentScopeListener: function(ast, scopeManager) {
-    this.currentScope = scopeManager.acquire(ast);
+    let currentScope = scopeManager.acquire(ast);
     return {
       enter: (node, parent) => {
+        this.nodeToScope.set(node, currentScope);
         if (isFunctionNode(node)) {
           // get current function scope
-          this.currentScope = scopeManager.acquire(node);
+          currentScope = scopeManager.acquire(node);
         }
       },
       leave: (node, parent) => {
         if (isFunctionNode(node)) {
           // set to parent scope
-          this.currentScope = this.currentScope.upper;
+          currentScope = currentScope.upper;
         }
       }
     };
