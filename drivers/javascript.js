@@ -113,6 +113,10 @@ function JSDriver() {
 
   this.accessorNodes = new WeakSet(/* node */);
 
+  this.memberNodesInScope = new WeakMap(/*
+    scope: new Set(property name from MemberExpression(this), ...)
+  */);
+
   this.nodeToEnclosingFunction = new WeakMap(/*
     node: Function node
   */);
@@ -240,7 +244,14 @@ JSDriver.prototype = {
           this.functionStack.unshift(node);
         }
         else if (this.functionStack.length) {
-          this.nodeToEnclosingFunction.set(node, this.functionStack[0]);
+          const current = this.functionStack[0];
+          this.nodeToEnclosingFunction.set(node, current);
+
+          if (isMemberThis(node)) {
+            if (!this.memberNodesInScope.has(current))
+              this.memberNodesInScope.set(current, new Set());
+            this.memberNodesInScope.get(current).add(node.property);
+          }
         }
       },
 
@@ -452,10 +463,7 @@ JSDriver.prototype = {
         if (this.ignoredNodes.has(awaitNode))
           return;
 
-        const refData = {
-          awaitNode,
-          asyncName: this.getNodeName(awaitNode),
-        };
+        const refData = { awaitNode };
         references.push(refData);
 
         const nextAsyncNode = this.nodeToEnclosingFunction.get(awaitNode);
@@ -479,39 +487,41 @@ JSDriver.prototype = {
    */
   getAwaitNodes: function(asyncNode) {
     const asyncScope = this.nodeToScope.get(asyncNode);
-    const rv = [];
 
     const asyncName = this.getNodeName(asyncNode);
     let maybeAwaitNodes = this.callsByName.get(asyncName) || [];
+
+    // direct references
     if (this.accessorNodes.has(asyncNode)) {
       maybeAwaitNodes = maybeAwaitNodes.concat(this.referencesByName.get(asyncName));
     }
 
-    {
-      let ctorNode = this.nodeToConstructorFunction.get(asyncNode);
-      if (ctorNode) {
-        maybeAwaitNodes.push(ctorNode);
-      }
+    // constructor reference
+    let ctorNode = this.nodeToConstructorFunction.get(asyncNode);
+    let memberNodes = null;
+    if (ctorNode) {
+      memberNodes = this.memberNodesInScope.get(ctorNode);
+    }
+    if (memberNodes) {
+      memberNodes.forEach(n => {
+        if (this.getNodeName(n) === asyncName)
+          maybeAwaitNodes.push(n);
+      });
     }
 
-    // direct references
-    {
-      rv.push(maybeAwaitNodes.filter((maybe) => {
-        if (this.nodesInAwaitCall.has(maybe))
-          return false;
-
-        let awaitScope = this.nodeToScope.get(maybe);
-        while (awaitScope) {
-          if (awaitScope === asyncScope)
-            return true;
-
-          awaitScope = awaitScope.upper;
-        }
+    return maybeAwaitNodes.filter((maybe) => {
+      if (this.nodesInAwaitCall.has(maybe))
         return false;
-      }));
-    }
 
-    return rv.flat();
+      let awaitScope = this.nodeToScope.get(maybe);
+      while (awaitScope) {
+        if (awaitScope === asyncScope)
+          return true;
+
+        awaitScope = awaitScope.upper;
+      }
+      return false;
+    });
   },
 
   fileAndLine(node) {

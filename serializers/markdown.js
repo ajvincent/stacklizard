@@ -30,9 +30,13 @@ MarkdownSerializer.prototype.appendNodes = function(indent, key)
 
 MarkdownSerializer.prototype.serializeChildData = function(
   indent,
-  {awaitNode, asyncNode, asyncName}
+  {awaitNode, asyncNode}
 )
 {
+  const asyncName = (asyncNode && this.jsDriver.getNodeName(asyncNode)) ||
+                    (awaitNode && this.jsDriver.getNodeName(awaitNode)) ||
+                    "";
+
   let rv = `${indent}- ${asyncName}()`;
   if (awaitNode)
     rv += `, await ${this.serializeNode(awaitNode)}`;
