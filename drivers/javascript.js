@@ -154,15 +154,17 @@ JSDriver.prototype = {
 
   parseSources: function() {
     const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
-    this.scopeManager = eslintScope.analyze(ast, {ecmaVersion: 2020});
 
     const listeners = new TraverseListeners;
 
     // Prototype lookups may need this to complete before they run.
-    listeners.append(this.lineMappingListener());
-    listeners.append(this.currentScopeListener(ast, this.scopeManager));
-    estraverse.traverse(ast, listeners);
-    listeners.clear();
+    {
+      const scopeManager = eslintScope.analyze(ast, {ecmaVersion: 2020});
+      listeners.append(this.lineMappingListener());
+      listeners.append(this.currentScopeListener(ast, scopeManager));
+      estraverse.traverse(ast, listeners);
+      listeners.clear();
+    }
 
     // Second pass, gather our data.
     listeners.append({
