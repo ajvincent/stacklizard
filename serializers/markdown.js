@@ -11,7 +11,7 @@ function MarkdownSerializer(root, asyncRefs, jsDriver, options = {}) {
 
 MarkdownSerializer.prototype.serialize = function()
 {
-  return this.appendNodes("", null);
+  return this.appendNodes("", null) + this.appendIgnoredNodes();
 };
 
 MarkdownSerializer.prototype.appendNodes = function(indent, key)
@@ -50,6 +50,14 @@ MarkdownSerializer.prototype.serializeChildData = function(
       !this.scheduledNodes.has(asyncNode))
     rv += this.appendNodes(indent + this.indentBlock, asyncNode);
 
+  return rv;
+};
+
+MarkdownSerializer.prototype.appendIgnoredNodes = function() {
+  let rv = "";
+  this.jsDriver.ignoredNodes.forEach(n => {
+    rv += "- Ignored: " + this.serializeNode(n) + "\n";
+  });
   return rv;
 };
 

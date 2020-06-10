@@ -114,7 +114,7 @@ function JSDriver() {
     value node: A node that owns the method.
   */);
 
-  this.ignoredNodes = new WeakSet();
+  this.ignoredNodes = new Set();
 
   this.nodesInAwaitCall = new WeakSet(/* node */);
 
