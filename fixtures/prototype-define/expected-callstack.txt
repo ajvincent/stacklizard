@@ -1,8 +1,8 @@
-- A.prototype.e(), fixture.js: async 26
-  - A.prototype.d(), fixture.js: async 19, await 22
-    - A.prototype.c(), fixture.js: async 15, await 16, getter
-      - A.prototype.b(), fixture.js: async 11, await 12
-        - A.prototype.a(), fixture.js: async 7, await 8
-      - A(), fixture.js: async 3, await 4
-        - B, fixture.js: await 47, instance
-    - A.prototype.p(), fixture.js: await 39
+- e(), async fixture.js:26 FunctionExpression[0]
+  - d(), await fixture.js:22 CallExpression[0], async fixture.js:19 FunctionExpression[0]
+    - c(), await fixture.js:16 CallExpression[0], async fixture.js:15 FunctionExpression[0], accessor
+      - b(), await fixture.js:12 MemberExpression[0], async fixture.js:11 FunctionExpression[0]
+        - a(), await fixture.js:8 CallExpression[1], async fixture.js:7 FunctionExpression[0]
+      - A(), await fixture.js:4 Identifier[1], async fixture.js:3 FunctionDeclaration[0], constructor
+        - A(), await fixture.js:47 NewExpression[0]
+    - d(), await fixture.js:39 CallExpression[0]

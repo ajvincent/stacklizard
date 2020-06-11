@@ -1,0 +1,2 @@
+- b(), async fixture.js:6 FunctionExpression[0]
+- Ignored: fixture.js:3 CallExpression[0]
