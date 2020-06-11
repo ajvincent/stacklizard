@@ -2,11 +2,11 @@
 "use strict";
 
 const path = require("path");
-const JSDriver = require("./drivers/javascript");
-const serializer = require("./serializers/markdown");
+const StackLizard = require("./stacklizard");
 
 async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines]) {
-  const jsDriver = new JSDriver(
+  const jsDriver = StackLizard.buildDriver(
+    "javascript",
     path.join(process.cwd(), "fixtures", testDir)
   );
 
@@ -38,13 +38,14 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
     debugger; // eslint-disable-line no-debugger
   const asyncRefs = jsDriver.getAsyncStacks(startAsync);
 
+  const serializer = StackLizard.getSerializer("markdown");
   console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
 }
 
 (async function(debugDir) {
   try {
     const basePath = path.join(process.cwd(), "fixtures/two-functions-minimal/");
-    const jsDriver = new JSDriver(basePath);
+    const jsDriver = StackLizard.buildDriver("javascript", basePath);
 
     await jsDriver.appendJSFile("a.js");
     await jsDriver.appendJSFile("b.js");
@@ -64,6 +65,7 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
     }
     const asyncRefs = jsDriver.getAsyncStacks(startAsync);
 
+    const serializer = StackLizard.getSerializer("markdown");
     console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
   }
   catch (ex) {
