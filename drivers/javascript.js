@@ -188,7 +188,7 @@ JSDriver.prototype = {
 
     // Second pass, gather our data.
     listeners.append({
-      enter: (node, parent) => {
+      enter: (node) => {
         if (node.type === "AssignmentExpression") {
           this.valueNodeToKeyNode.set(node.right, node.left);
         }
@@ -223,7 +223,7 @@ JSDriver.prototype = {
   lineMappingListener: function() {
     const mappingList = this.lineMapping.slice();
     return {
-      enter: (node, parent) => {
+      enter: (node) => {
         const parseLine = node.loc.start.line;
         while (parseLine >= mappingList[0].endSourceLine)
           mappingList.shift();
@@ -286,14 +286,14 @@ JSDriver.prototype = {
   currentScopeListener: function(ast, scopeManager) {
     let currentScope = scopeManager.acquire(ast);
     return {
-      enter: (node, parent) => {
+      enter: (node) => {
         this.nodeToScope.set(node, currentScope);
         if (isFunctionNode(node)) {
           // get current function scope
           currentScope = scopeManager.acquire(node);
         }
       },
-      leave: (node, parent) => {
+      leave: (node) => {
         if (isFunctionNode(node)) {
           // set to parent scope
           currentScope = currentScope.upper;
@@ -304,10 +304,10 @@ JSDriver.prototype = {
 
   debugByLine: function(file, line) {
     this.debugByLineListeners.push({
-      enter: (node, parent) => {
+      enter: (node) => {
         voidFunc(this);
         if ((node.file === file) && (node.line === line))
-          debugger;
+          debugger; // eslint-disable-line no-debugger
       }
     });
   },
@@ -315,11 +315,11 @@ JSDriver.prototype = {
   prototypeListener: function() {
     this.prototypeStack = [];
     return {
-      enter: (node, parent) => {
+      enter: (node) => {
         if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
           this.prototypeStack.unshift(node.left.object);
       },
-      leave: (node, parent) => {
+      leave: (node) => {
         if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
           this.prototypeStack.shift();
       }
