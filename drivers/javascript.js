@@ -541,6 +541,17 @@ JSDriver.prototype = {
 
   fileAndLine(node) {
     return node.file + ":" + node.line;
+  },
+
+  serializeNode: function(node) {
+    let rv = `${this.fileAndLine(node)} ${node.type}[${this.indexOfNodeOnLine(node)}]`;
+    if (this.accessorNodes.has(node)) {
+      rv += ", accessor";
+    }
+    if (this.constructorFunctions.has(node)) {
+      rv += ", constructor";
+    }
+    return rv;
   }
 };
 

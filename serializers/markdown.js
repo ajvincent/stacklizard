@@ -39,15 +39,9 @@ MarkdownSerializer.prototype.serializeChildData = function(
 
   let rv = `${indent}- ${asyncName}()`;
   if (awaitNode)
-    rv += `, await ${this.serializeNode(awaitNode)}`;
+    rv += `, await ${this.jsDriver.serializeNode(awaitNode)}`;
   if (asyncNode) {
-    rv += `, async ${this.serializeNode(asyncNode)}`;
-    if (this.jsDriver.accessorNodes.has(asyncNode)) {
-      rv += ", accessor";
-    }
-    if (this.jsDriver.constructorFunctions.has(asyncNode)) {
-      rv += ", constructor";
-    }
+    rv += `, async ${this.jsDriver.serializeNode(asyncNode)}`;
   }
 
   rv += "\n";
@@ -63,15 +57,10 @@ MarkdownSerializer.prototype.serializeChildData = function(
 MarkdownSerializer.prototype.appendIgnoredNodes = function() {
   let rv = "";
   this.jsDriver.ignoredNodes.forEach(n => {
-    rv += "- Ignored: " + this.serializeNode(n) + "\n";
+    rv += "- Ignored: " + this.jsDriver.serializeNode(n) + "\n";
   });
   return rv;
 };
-
-MarkdownSerializer.prototype.serializeNode = function(node)
-{
-  return `${this.jsDriver.fileAndLine(node)} ${node.type}[${this.jsDriver.indexOfNodeOnLine(node)}]`;
-}
 
 module.exports = function(root, asyncRefs, jsDriver, options)
 {
