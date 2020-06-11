@@ -45,6 +45,9 @@ MarkdownSerializer.prototype.serializeChildData = function(
     if (this.jsDriver.accessorNodes.has(asyncNode)) {
       rv += ", accessor";
     }
+    if (this.jsDriver.constructorFunctions.has(asyncNode)) {
+      rv += ", constructor";
+    }
   }
 
   rv += "\n";

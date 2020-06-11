@@ -88,7 +88,7 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
       ["object-assign-name-match", 6],
       ["object-assign-name-mismatch", 6],
       ["object-this-getter", 10, 3, 6],
-      ["prototype-define", 26, 3, 4],
+      ["prototype-define", 26, 47],
       /*
       ["prototype-assign", -2], // line number unclear
       */

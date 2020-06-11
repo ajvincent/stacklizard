@@ -37,7 +37,7 @@ const sourceOptions = {
   range: true,
 };
 
-function voidFunc() {};
+function voidFunc() {}
 
 function TraverseListeners() {
   this.enter = this.enter.bind(this);
@@ -137,6 +137,8 @@ function JSDriver() {
 
   this.nodesInAwaitCall = new WeakSet(/* node */);
 
+  this.constructorFunctions = new WeakSet(/* node */);
+
   this.debugByLineListeners = [];
 }
 JSDriver.prototype = {
@@ -171,7 +173,7 @@ JSDriver.prototype = {
 
   parseSources: function() {
     const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
-    const listeners = new TraverseListeners;
+    const listeners = new TraverseListeners();
 
     // Prototype lookups may need this to complete before they run.
     {
@@ -205,7 +207,8 @@ JSDriver.prototype = {
       enter: (node, parent) => {
         if (("id" in node) ||
             (node.type === "CallExpression") ||
-            (node.type === "MemberExpression")) {
+            (node.type === "MemberExpression") ||
+            (node.type === "NewExpression")) {
           this.referencesByNameListener(node, parent);
         }
       }
@@ -277,7 +280,7 @@ JSDriver.prototype = {
         if (node.type === "AwaitExpression")
           awaitCount--;
       }
-    }
+    };
   },
 
   currentScopeListener: function(ast, scopeManager) {
@@ -325,7 +328,17 @@ JSDriver.prototype = {
 
   referencesByNameListener: function(node) {
     if (this.prototypeStack.length) {
-      this.nodeToConstructorFunction.set(node, this.getCurrentConstructor());
+      let ctorNode = this.getConstructorFunction(this.prototypeStack[0]);
+      if (ctorNode) {
+        this.nodeToConstructorFunction.set(node, ctorNode);
+      }
+    }
+
+    if (node.type === "NewExpression") {
+      let ctorNode = this.getConstructorFunction(node.callee);
+      if (ctorNode) {
+        this.constructorFunctions.add(ctorNode);
+      }
     }
 
     const name = this.getNodeName(node);
@@ -333,7 +346,8 @@ JSDriver.prototype = {
       return;
 
     let map;
-    if (node.type === "CallExpression")
+    if ((node.type === "CallExpression") ||
+        (node.type === "NewExpression"))
       map = this.callsByName;
     else {
       map = this.referencesByName;
@@ -344,10 +358,9 @@ JSDriver.prototype = {
     map.get(name).push(node);
   },
 
-  getCurrentConstructor: function() {
-    const name = this.getNodeName(this.prototypeStack[0]);
-    const scope = this.nodeToScope.get(this.prototypeStack[0]);
-
+  getConstructorFunction: function(refNode) {
+    const name = this.getNodeName(refNode);
+    let scope = this.nodeToScope.get(refNode);
     while (scope && !scope.set.has(name))
       scope = scope.upper;
     if (!scope)
@@ -372,6 +385,8 @@ JSDriver.prototype = {
         return node.name;
       case "MemberExpression":
         return this.getNodeName(node.property);
+      case "NewExpression":
+        return this.getNodeName(node.callee);
       case "ThisExpression":
         return "this";
       case "VariableDeclarator":
