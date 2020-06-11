@@ -27,6 +27,8 @@
 const espree = require("espree");
 const eslintScope = require('eslint-scope');
 const estraverse = require('estraverse');
+const fs = require("fs").promises;
+const path = require("path");
 
 /**
  * @private
@@ -94,9 +96,18 @@ function isPrototypeAssignMethod(node) {
 }
 
 /**
+ * The JavaScript driver.
+ * @param {string} rootDir A root directory for all processing.
+ * @param {Object} options Configuration options:
+ *   (none defined yet)
+ *
  * @constructor
  */
-function JSDriver() {
+function JSDriver(rootDir, options = {}) {
+  this.rootDir = rootDir;
+  this.options = options;
+  this.sources = new Set(/* pathToFile */);
+
   this.parsingBuffer = [];
   this.lineMapping = [/*
     {
@@ -157,6 +168,22 @@ function JSDriver() {
   this.debugByLineListeners = [];
 }
 JSDriver.prototype = {
+  /**
+   * Read a JS file from the filesystem.
+   * @param {string} pathToFile The relative path to the file.
+   *
+   * @public
+   */
+  appendJSFile: async function(pathToFile) {
+    if (this.sources.has(pathToFile))
+      return this.sources.get(pathToFile);
+
+    const fullPath = path.join(this.rootDir, pathToFile);
+    const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
+    this.appendSource(pathToFile, 1, source);
+    this.sources.add(pathToFile);
+  },
+
   appendSource: function(pathToFile, firstLineInFile, source) {
     const startSourceLine = this.parsingBuffer.length + 1;
     const addedLines = source.split("\n");

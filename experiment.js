@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 "use strict";
 
-const fs = require("fs").promises;
 const path = require("path");
 const JSDriver = require("./drivers/javascript");
 const serializer = require("./serializers/markdown");
 
 async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines]) {
-  const pathToFile = path.join(process.cwd(), `fixtures/${testDir}/fixture.js`);
-  const source = await fs.readFile(pathToFile, { encoding: "UTF-8" });
+  const jsDriver = new JSDriver(
+    path.join(process.cwd(), "fixtures", testDir)
+  );
 
-  const jsDriver = new JSDriver();
-
-  jsDriver.appendSource("fixture.js", 1, source);
+  await jsDriver.appendJSFile("fixture.js");
   console.log(testDir);
   console.log(jsDriver.serializeSourceMapping());
 
@@ -43,18 +41,13 @@ async function simpleFixtureTest(debugDir, [testDir, lineNumber, ...debugLines])
   console.log(serializer(startAsync, asyncRefs, jsDriver, {nested: true}));
 }
 
-async function getFile(basePath, pathToFile) {
-  return fs.readFile(path.join(basePath, pathToFile), { encoding: "UTF-8" });
-}
-
 (async function(debugDir) {
   try {
     const basePath = path.join(process.cwd(), "fixtures/two-functions-minimal/");
+    const jsDriver = new JSDriver(basePath);
 
-    const jsDriver = new JSDriver();
-
-    jsDriver.appendSource("a.js", 1, (await getFile(basePath, "a.js")));
-    jsDriver.appendSource("b.js", 1, (await getFile(basePath, "b.js")));
+    await jsDriver.appendJSFile("a.js");
+    await jsDriver.appendJSFile("b.js");
 
     console.log("two-functions-minimal");
     console.log(jsDriver.serializeSourceMapping());
