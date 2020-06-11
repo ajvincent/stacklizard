@@ -89,9 +89,7 @@ async function getFile(basePath, pathToFile) {
     ["object-assign-name-mismatch", 6],
     ["object-this-getter", 10, 3, 6],
     ["prototype-define", 26, 47],
-    /*
-    ["prototype-assign", -2], // line number unclear
-    */
+    ["prototype-assign", 25],
   ].map(async data => {
     try {
       const output = await simpleFixtureTest(debugDir, data);
@@ -102,4 +100,4 @@ async function getFile(basePath, pathToFile) {
       throw ex;
     }
   }));
-})("prototype-define");
+})("prototype-assign");

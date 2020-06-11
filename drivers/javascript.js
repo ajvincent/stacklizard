@@ -78,6 +78,21 @@ function isMemberThis(node) {
          (node.object.type === "ThisExpression");
 }
 
+function isPrototypeAssignMethod(node) {
+  if (node.type !== "AssignmentExpression")
+    return false;
+
+  if (!isFunctionNode(node.right))
+    return false;
+
+  if (node.left.type !== "MemberExpression")
+    return false;
+  if (node.left.property.type !== "Identifier")
+    return false;
+
+  return isPrototypeMember(node.left.object);
+}
+
 /**
  * @constructor
  */
@@ -318,6 +333,12 @@ JSDriver.prototype = {
       enter: (node) => {
         if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
           this.prototypeStack.unshift(node.left.object);
+        else if (isPrototypeAssignMethod(node)) {
+          let ctorNode = this.getConstructorFunction(node.left.object.object);
+          if (ctorNode) {
+            this.nodeToConstructorFunction.set(node.right, ctorNode);
+          }
+        }
       },
       leave: (node) => {
         if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))

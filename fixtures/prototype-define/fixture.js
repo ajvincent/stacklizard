@@ -44,4 +44,4 @@ A.prototype = {
   },
 };
 
-const B = new A();
+const B = new A(); // eslint-disable-line no-unused-vars
