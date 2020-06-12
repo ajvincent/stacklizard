@@ -859,6 +859,9 @@ JSDriver.prototype = {
   /**
    * Generate a serialization of the node's important properties.
    * @param {Node} node The node to serialize.
+   *
+   * @public
+   * @returns {string} The serialization of the node.
    */
   serializeNode: function(node) {
     let rv = `${this.fileAndLine(node)} ${node.type}[${this.indexOfNodeOnLine(node)}]`;
