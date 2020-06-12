@@ -5,7 +5,7 @@ const path = require("path");
 const EventEmitter = require("events");
 const HTMLDriver = require("../lib/html");
 
-xit(
+it(
   "HTMLDriver correctly parses out relevant scripts and HTML references",
   async () => {
     const expectedSequence = [
