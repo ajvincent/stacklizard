@@ -6,3 +6,4 @@
       - A(), await fixture.js:4 Identifier[1], async fixture.js:3 FunctionDeclaration[0], constructor
         - A(), await fixture.js:45 NewExpression[0]
     - d(), await fixture.js:38 CallExpression[0]
+- **SyntaxError**: async fixture.js:3 FunctionDeclaration[0], constructor

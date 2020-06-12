@@ -363,8 +363,8 @@ JSDriver.prototype = {
   /**
    * Get a stringified representation of the code we will parse.comment
    *
-   * @returns {string} The code, annotated by original source file and line number.
    * @public
+   * @returns {string} The code, annotated by original source file and line number.
    */
   serializeSourceMapping: function() {
     const mappingList = this.lineMapping.slice();
@@ -919,7 +919,20 @@ JSDriver.prototype = {
       rv += ", constructor";
     }
     return rv;
-  }
+  },
+
+  /**
+   * Report if a node we marked async cannot have an async keyword on it.
+   *
+   * @param {Node} node The node to check.
+   *
+   * @public
+   * @returns {Boolean}
+   */
+  isAsyncSyntaxError: function(node) {
+    return this.accessorNodes.has(node) ||
+           this.constructorFunctions.has(node);
+  },
 };
 
 module.exports = JSDriver;

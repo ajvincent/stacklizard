@@ -1,3 +1,4 @@
 - c(), async fixture.js:10 FunctionExpression[0]
   - b(), await fixture.js:7 CallExpression[0], async fixture.js:6 FunctionExpression[0], accessor
     - a(), await fixture.js:3 MemberExpression[0], async fixture.js:2 FunctionExpression[0]
+- **SyntaxError**: async fixture.js:6 FunctionExpression[0], accessor

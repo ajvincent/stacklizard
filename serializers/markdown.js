@@ -7,11 +7,13 @@ function MarkdownSerializer(root, asyncRefs, parseDriver, options = {}) {
   this.indentBlock = options.nested ? "  " : "";
 
   this.scheduledNodes = new WeakSet();
+
+  this.asyncSyntaxErrors = new Set();
 }
 
 MarkdownSerializer.prototype.serialize = function()
 {
-  return this.appendNodes("", null) + this.appendIgnoredNodes();
+  return this.appendNodes("", null) + this.appendIgnoredNodes() + this.appendAsyncSyntaxErrors();
 };
 
 MarkdownSerializer.prototype.appendNodes = function(indent, key)
@@ -42,6 +44,9 @@ MarkdownSerializer.prototype.serializeChildData = function(
     rv += `, await ${this.parseDriver.serializeNode(awaitNode)}`;
   if (asyncNode) {
     rv += `, async ${this.parseDriver.serializeNode(asyncNode)}`;
+
+    if (this.parseDriver.isAsyncSyntaxError(asyncNode))
+      this.asyncSyntaxErrors.add(asyncNode);
   }
 
   rv += "\n";
@@ -61,6 +66,14 @@ MarkdownSerializer.prototype.appendIgnoredNodes = function() {
   });
   return rv;
 };
+
+MarkdownSerializer.prototype.appendAsyncSyntaxErrors = function() {
+  let rv = "";
+  this.asyncSyntaxErrors.forEach(n => {
+    rv += "- **SyntaxError**: async " + this.parseDriver.serializeNode(n) + "\n";
+  });
+  return rv;
+}
 
 module.exports = function(root, asyncRefs, parseDriver, options)
 {
