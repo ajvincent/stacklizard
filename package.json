@@ -7,7 +7,7 @@
     "start": "./stacklizard.js",
     "test": "mocha --recursive",
     "debug": "./node_modules/mocha/bin/mocha --recursive --inspect-brk",
-    "eslint": "./node_modules/.bin/eslint drivers/ serializers/"
+    "eslint": "./node_modules/.bin/eslint drivers/ serializers/ *.js"
   },
   "repository": {
     "type": "git",

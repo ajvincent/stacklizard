@@ -83,3 +83,39 @@ describe(
     );
   }
 );
+
+it ("JSDriver configuration-driven test", async function() {
+  const pathToConfig = path.resolve(
+    process.cwd(),
+    "fixtures/object-define-name-mismatch/command-line-config.json"
+  );
+  const config = JSON.parse(await fs.readFile(pathToConfig));
+
+  const rootDir = path.resolve(path.dirname(pathToConfig), config.driver.root);
+  const parseDriver = StackLizard.buildDriver(
+    config.driver.type,
+    rootDir,
+    config.driver.options || {}
+  );
+
+  const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver);
+
+  const serializer = StackLizard.getSerializer(config.serializer.type);
+
+  const analysis = serializer(
+    startAsync, asyncRefs, parseDriver, config.serializer.options || {}
+  );
+
+  await fs.writeFile(
+    path.join(rootDir, "actual-callstack.txt"),
+    analysis,
+    { encoding: "utf-8" }
+  );
+
+  const expected = await fs.readFile(
+    path.join(rootDir, "expected-callstack.txt"),
+    { encoding: "utf-8" }
+  );
+
+  assert.equal(analysis, expected);
+});

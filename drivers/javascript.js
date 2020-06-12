@@ -277,6 +277,53 @@ function JSDriver(rootDir, options = {}) {
 
 JSDriver.prototype = {
   /**
+   * Perform an analysis based on a configuration.
+   *
+   * @param {JSONObject} config The configuration for this driver.
+   *
+   * @public
+   * @returns {Object} A dictionary object:
+   *   startAsync: The start node indicated by config.markAsync.
+   *   asyncRefs:  Map() of async nodes to corresponding await nodes and their async callers.
+   */
+  analyzeByConfiguration: async function(config) {
+    let ignoreFilters = [];
+    if (Array.isArray(config.ignore)) {
+      ignoreFilters = config.ignore.map(ignoreData =>
+        n => n.type === ignoreData.type
+      );
+    }
+
+    await Promise.all(config.scripts.map(
+      script => this.appendJSFile(script)
+    ));
+
+    this.parseSources();
+
+    if (Array.isArray(config.ignore)) {
+      config.ignore.map((ignore, filterIndex) => {
+        const ignorable = this.nodeByLineFilterIndex(
+          ignore.path,
+          ignore.line,
+          ignore.index,
+          ignoreFilters[filterIndex]
+        );
+        this.markIgnored(ignorable);
+      });
+    }
+
+    const startAsync = this.functionNodeFromLine(
+      config.markAsync.path,
+      config.markAsync.line,
+      config.markAsync.functionIndex || 0
+    );
+
+    const asyncRefs = this.getAsyncStacks(startAsync);
+
+    return { startAsync, asyncRefs };
+  },
+
+  /**
    * Read a JS file from the filesystem.
    * @param {string} pathToFile The relative path to the file.
    *
@@ -286,7 +333,7 @@ JSDriver.prototype = {
     if (this.sources.has(pathToFile))
       return this.sources.get(pathToFile);
 
-    const fullPath = path.join(this.rootDir, pathToFile);
+    const fullPath = path.resolve(this.rootDir, pathToFile);
     const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
     this.appendSource(pathToFile, 1, source);
     this.sources.add(pathToFile);

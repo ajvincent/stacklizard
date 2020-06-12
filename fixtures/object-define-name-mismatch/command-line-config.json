@@ -1,0 +1,29 @@
+{
+  "driver": {
+    "type": "javascript",
+    "options": {},
+    "root": ".",
+    "scripts": [
+      "fixture.js"
+    ],
+    "ignore": [
+      {
+        "path": "fixture.js",
+        "line": 3,
+        "type": "CallExpression",
+        "index": 0
+      }
+    ],
+    "markAsync": {
+      "path": "fixture.js",
+      "line": 6,
+      "functionIndex": 0
+    }
+  },
+  "serializer": {
+    "type": "markdown",
+    "options": {
+      "nested": true
+    }
+  }
+}

@@ -1,9 +1,9 @@
 "use strict";
 
-function MarkdownSerializer(root, asyncRefs, jsDriver, options = {}) {
+function MarkdownSerializer(root, asyncRefs, parseDriver, options = {}) {
   this.root = root;
   this.asyncRefs = asyncRefs;
-  this.jsDriver = jsDriver;
+  this.parseDriver = parseDriver;
   this.indentBlock = options.nested ? "  " : "";
 
   this.scheduledNodes = new WeakSet();
@@ -33,15 +33,15 @@ MarkdownSerializer.prototype.serializeChildData = function(
   {awaitNode, asyncNode}
 )
 {
-  const asyncName = (asyncNode && this.jsDriver.getNodeName(asyncNode)) ||
-                    (awaitNode && this.jsDriver.getNodeName(awaitNode)) ||
+  const asyncName = (asyncNode && this.parseDriver.getNodeName(asyncNode)) ||
+                    (awaitNode && this.parseDriver.getNodeName(awaitNode)) ||
                     "";
 
   let rv = `${indent}- ${asyncName}()`;
   if (awaitNode)
-    rv += `, await ${this.jsDriver.serializeNode(awaitNode)}`;
+    rv += `, await ${this.parseDriver.serializeNode(awaitNode)}`;
   if (asyncNode) {
-    rv += `, async ${this.jsDriver.serializeNode(asyncNode)}`;
+    rv += `, async ${this.parseDriver.serializeNode(asyncNode)}`;
   }
 
   rv += "\n";
@@ -56,18 +56,18 @@ MarkdownSerializer.prototype.serializeChildData = function(
 
 MarkdownSerializer.prototype.appendIgnoredNodes = function() {
   let rv = "";
-  this.jsDriver.ignoredNodes.forEach(n => {
-    rv += "- Ignored: " + this.jsDriver.serializeNode(n) + "\n";
+  this.parseDriver.ignoredNodes.forEach(n => {
+    rv += "- Ignored: " + this.parseDriver.serializeNode(n) + "\n";
   });
   return rv;
 };
 
-module.exports = function(root, asyncRefs, jsDriver, options)
+module.exports = function(root, asyncRefs, parseDriver, options)
 {
   const serializer = new MarkdownSerializer(
     root,
     asyncRefs,
-    jsDriver,
+    parseDriver,
     options
   );
   return serializer.serialize();
