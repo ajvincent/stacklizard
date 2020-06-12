@@ -3,7 +3,7 @@ const path = require('path');
 const util = require('util');
 const execFile = util.promisify(require('child_process').execFile);
 
-const pathToExtractor = path.join(process.cwd(), "drivers/mozilla/extractListFrom.py");
+const pathToExtractor = path.resolve(process.cwd(), "drivers/mozilla/extractListFrom.py");
 
 var failedFiles = [];
 
@@ -47,7 +47,7 @@ async function getXPCOMManifest(mozBuild) {
   let configurations = await extractListFromPython(mozBuild, "XPCOM_MANIFESTS", "substrings");
 
   const dir = path.dirname(mozBuild);
-  return configurations.map(conf => path.join(dir, conf));
+  return configurations.map(conf => path.resolve(dir, conf));
 }
 
 async function getClasses(filePath) {
@@ -56,7 +56,7 @@ async function getClasses(filePath) {
 
 async function getAllClasses(pathToRepo) {
   failedFiles = [];
-  const manifestFiles = await getManifestFiles(path.join(process.cwd(), pathToRepo));
+  const manifestFiles = await getManifestFiles(path.resolve(process.cwd(), pathToRepo));
   const classList = await Promise.all(manifestFiles.map(getClasses));
   return classList.flat().filter(Boolean);
 }

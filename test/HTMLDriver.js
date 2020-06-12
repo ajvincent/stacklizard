@@ -46,7 +46,7 @@ it(
 
     const driver = new HTMLDriver(events);
 
-    const fullPath = path.join(process.cwd(), "fixtures/htmlDriver.html");
+    const fullPath = path.resolve(process.cwd(), "fixtures/htmlDriver.html");
     const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
     driver.parseHTML(source);
 

@@ -5,13 +5,13 @@ const fs = require("fs").promises;
 const path = require("path");
 
 async function fixtureTest(fixture) {
-  const root = path.join(process.cwd(), "fixtures", fixture);
+  const root = path.resolve(process.cwd(), "fixtures", fixture);
   const driver = StackLizard.buildDriver("javascript", root);
 
   let json = {};
   {
     const jsonSrc = await fs.readFile(
-      path.join(root, "test-config.json"),
+      path.resolve(root, "test-config.json"),
       { encoding: "utf-8" }
     );
     json = JSON.parse(jsonSrc);
@@ -49,13 +49,13 @@ async function fixtureTest(fixture) {
   const analysis = serializer(startAsync, asyncRefs, driver, {nested: true});
 
   await fs.writeFile(
-    path.join(root, "actual-callstack.txt"),
+    path.resolve(root, "actual-callstack.txt"),
     analysis,
     { encoding: "utf-8" }
   );
 
   const expected = await fs.readFile(
-    path.join(root, "expected-callstack.txt"),
+    path.resolve(root, "expected-callstack.txt"),
     { encoding: "utf-8" }
   );
 
@@ -107,13 +107,13 @@ it ("JSDriver configuration-driven test", async function() {
   );
 
   await fs.writeFile(
-    path.join(rootDir, "actual-callstack.txt"),
+    path.resolve(rootDir, "actual-callstack.txt"),
     analysis,
     { encoding: "utf-8" }
   );
 
   const expected = await fs.readFile(
-    path.join(rootDir, "expected-callstack.txt"),
+    path.resolve(rootDir, "expected-callstack.txt"),
     { encoding: "utf-8" }
   );
 
