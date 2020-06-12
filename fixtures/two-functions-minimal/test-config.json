@@ -1,11 +1,12 @@
 {
   "scripts": [
-    "fixture.js"
+    "a.js",
+    "b.js"
   ],
 
   "markAsync": {
-    "path": "fixture.js",
-    "line": 26,
+    "path": "b.js",
+    "line": 1,
     "functionIndex": 0
   }
 }
