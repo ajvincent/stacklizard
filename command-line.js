@@ -23,10 +23,25 @@ const subparsers = argparser.addSubparsers({
 
 const subcommandMap = new Map(/* subcommand: execute */);
 
-function buildSubparser(subcommand, options, setup, execute) {
-  const subparser = subparsers.addParser(subcommand, options);
-  setup(subparser);
-  subparser.addArgument(
+{
+  const standalone = subparsers.addParser(
+    "standalone",
+    {
+      title: "Stand-alone JS file analysis",
+      help: "Stand-alone JS file analysis",
+      addHelp: true,
+    }
+  );
+
+  standalone.addArgument(
+    "path",
+    {
+      action: "store",
+      help: "The location of the file to load."
+    },
+  );
+
+  standalone.addArgument(
     "line",
     {
       action: "store",
@@ -34,35 +49,18 @@ function buildSubparser(subcommand, options, setup, execute) {
       help: "The line number of the function.",
     }
   );
-  
-  subparser.addArgument(
-    "fnIndex",
+
+  standalone.addArgument(
+    "--fnIndex",
     {
       action: "store",
+      defaultValue: 0,
       type: (x) => parseInt(x, 10),
       help: "If there is more than one function on the line, the index of the function.",
     }
   );
-  subcommandMap.set(subcommand, execute);
-}
 
-buildSubparser(
-  'standalone',
-  {
-    title: "Stand-alone JS file analysis",
-    help: "Stand-alone JS file analysis",
-    addHelp: true,
-  },
-  (standalone) => {
-    standalone.addArgument(
-      "path",
-      {
-        action: "store",
-        help: "The location of the file to load."
-      },
-    );
-  },
-  async (args) => {
+  subcommandMap.set("standalone", async (args) => {
     const dir = path.dirname(args.path), leaf = path.basename(args.path);
     const driver = StackLizard.buildDriver("javascript", dir);
     await driver.appendJSFile(leaf);
@@ -77,8 +75,8 @@ buildSubparser(
     const analysis = serializer(startAsync, asyncRefs, driver, {nested: true});
 
     console.log(analysis);
-  }
-);
+  });
+}
 
 module.exports = {
   execute: async function() {
