@@ -1,0 +1,20 @@
+{
+  "scripts": [
+    "fixture.js"
+  ],
+
+  "ignore": [
+    {
+      "path": "fixture.js",
+      "line": 3,
+      "functionIndex": 0,
+      "type": "CallExpression"
+    }
+  ],
+
+  "markAsync": {
+    "path": "fixture.js",
+    "line": 6,
+    "functionIndex": 0
+  }
+}

@@ -1,0 +1,2 @@
+- b(), async b.js:1 FunctionDeclaration[0]
+  - a(), await a.js:2 CallExpression[0], async a.js:1 FunctionDeclaration[0]

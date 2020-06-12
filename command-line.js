@@ -64,11 +64,18 @@ buildSubparser(
   },
   async (args) => {
     const dir = path.dirname(args.path), leaf = path.basename(args.path);
-    const lizard = new StackLizard(dir);
-    await lizard.parseJSFile(leaf);
-    lizard.populateMaps(leaf);
-    const stack = lizard.getStacksOfFunction(leaf, args.line, args.fnIndex);
-    const analysis = lizard.serializeAnalysis(stack);
+    const driver = StackLizard.buildDriver("javascript", dir);
+    await driver.appendJSFile(leaf);
+    driver.parseSources();
+
+    const startAsync = driver.functionNodeFromLine(
+      leaf, args.line, args.fnIndex
+    );
+    const asyncRefs = driver.getAsyncStacks(startAsync);
+
+    const serializer = StackLizard.getSerializer("markdown");
+    const analysis = serializer(startAsync, asyncRefs, driver, {nested: true});
+
     console.log(analysis);
   }
 );

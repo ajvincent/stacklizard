@@ -1,0 +1,6 @@
+- e(), async fixture.js:19 FunctionDeclaration[0]
+  - d(), await fixture.js:15 CallExpression[0], async fixture.js:13 FunctionDeclaration[0]
+    - c(), await fixture.js:10 CallExpression[0], async fixture.js:9 FunctionDeclaration[0]
+      - b(), await fixture.js:6 CallExpression[0], async fixture.js:5 FunctionDeclaration[0]
+        - a(), await fixture.js:2 CallExpression[1], async fixture.js:1 FunctionDeclaration[0]
+    - d(), await fixture.js:32 CallExpression[0]

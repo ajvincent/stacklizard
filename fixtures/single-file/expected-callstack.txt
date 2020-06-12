@@ -1,8 +1,0 @@
-- A.prototype.e(), fixture.js: async 26
-  - A.prototype.d(), fixture.js: async 19, await 22
-    - A.prototype.c(), fixture.js: async 15, await 16, getter
-      - A.prototype.b(), fixture.js: async 11, await 12
-        - A.prototype.a(), fixture.js: async 7, await 8
-      - A(), fixture.js: async 3, await 4
-        - B, fixture.js: await 47, instance
-    - A.prototype.p(), fixture.js: await 39

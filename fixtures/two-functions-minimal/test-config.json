@@ -1,0 +1,12 @@
+{
+  "scripts": [
+    "a.js",
+    "b.js"
+  ],
+
+  "markAsync": {
+    "path": "b.js",
+    "line": 1,
+    "functionIndex": 0
+  }
+}
