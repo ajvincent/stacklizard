@@ -433,6 +433,32 @@ JSDriver.prototype = {
   },
 
   /**
+   * Associate each AST node with a JavaScript scope.
+   * @param {AST} ast      From espree
+   * @param {ScopeManager} manager From eslint-scope
+   *
+   * @private
+   */
+  currentScopeListener: function(ast, manager) {
+    let currentScope = manager.acquire(ast);
+    return {
+      enter: (node) => {
+        this.nodeToScope.set(node, currentScope);
+        if (isFunctionNode(node)) {
+          // get current function scope
+          currentScope = manager.acquire(node);
+        }
+      },
+      leave: (node) => {
+        if (isFunctionNode(node)) {
+          // set to parent scope
+          currentScope = currentScope.upper;
+        }
+      }
+    };
+  },
+
+  /**
    * Keep track of a stack of functions in the parse tree.
    * @private
    */
@@ -482,33 +508,6 @@ JSDriver.prototype = {
       leave: (node) => {
         if (node.type === "AwaitExpression")
           awaitCount--;
-      }
-    };
-  },
-
-  /**
-   * Associate each AST node with a JavaScript scope.
-   * @param {AST} ast      From espree
-   * @param {ScopeManager} manager From eslint-scope
-   *
-   * @private
-   */
-  // XXX move next to lineMappingListener
-  currentScopeListener: function(ast, manager) {
-    let currentScope = manager.acquire(ast);
-    return {
-      enter: (node) => {
-        this.nodeToScope.set(node, currentScope);
-        if (isFunctionNode(node)) {
-          // get current function scope
-          currentScope = manager.acquire(node);
-        }
-      },
-      leave: (node) => {
-        if (isFunctionNode(node)) {
-          // set to parent scope
-          currentScope = currentScope.upper;
-        }
       }
     };
   },
