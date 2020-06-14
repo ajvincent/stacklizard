@@ -1,6 +1,5 @@
 "use strict"
 const htmlparser2 = require("htmlparser2");
-const LineAndColumn = require("./LineAndColumn");
 const EventEmitter = require("events");
 
 function wrapTokenizerAttrStart(name) {
@@ -21,7 +20,34 @@ const parseOptions = {
   recognizeSelfClosing: true,
 };
 
-class HTMLDriver {
+function LineAndColumn(other = null) {
+  other ? this.copy(other) : this.clear();
+}
+{
+  LineAndColumn.prototype.copy = function(other) {
+    this.line = other.line;
+    this.column = other.column;
+    this.url = other.url;
+  };
+  
+  LineAndColumn.prototype.clear = function() {
+    this.line = 0;
+    this.column = 0;
+    this.url = "";
+  };
+  
+  LineAndColumn.prototype.toString = function() {
+    return `at line ${this.line} column ${this.column}`;
+  };
+  
+  Reflect.defineProperty(LineAndColumn.prototype, "isCleared", {
+    get: function() { return (this.line === 0); },
+    enumerable: true,
+    configurable: false,
+  });
+}
+
+class ScriptExtractor {
   constructor(events = new EventEmitter) {
     this.parser = new htmlparser2.Parser(this, parseOptions);
     [
@@ -107,13 +133,15 @@ class HTMLDriver {
     }
     else if (this.isFrameElement(name, attribs))
       this.events.emit("loadframe", attribs.src);
+    else if ((name === "base") && (attribs.href))
+      this.events.emit("baseHref", attribs.href);
   }
 
-  onopentagname(name) {
+  onopentagname(/* name */) {
     this.flushText();
   }
 
-  oncomment(contents) {
+  oncomment(/* contents */) {
     this.flushText();
   }
 
@@ -123,7 +151,7 @@ class HTMLDriver {
     this.textBuffer += c;
   }
 
-  onclosetag(name) {
+  onclosetag(/* name */) {
     let contents = this.flushText();
     if (this.isInlineScript) {
       if (contents.startsWith("<!--")) {
@@ -135,6 +163,6 @@ class HTMLDriver {
       this.isInlineScript = false;
     }
   }
-};
+}
 
-module.exports = HTMLDriver;
+module.exports = ScriptExtractor;

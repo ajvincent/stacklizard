@@ -3,10 +3,10 @@ const assert = require("assert").strict;
 const fs = require("fs").promises;
 const path = require("path");
 const EventEmitter = require("events");
-const HTMLDriver = require("../lib/html");
+const HTMLScriptExtractor = require("../drivers/html-utilities/scriptExtractor");
 
 it(
-  "HTMLDriver correctly parses out relevant scripts and HTML references",
+  "HTMLScriptExtractor correctly parses out relevant scripts and HTML references",
   async () => {
     const expectedSequence = [
       ["eventhandler",  3, 17, 'foo()'],
@@ -44,11 +44,11 @@ it(
       ]);
     });
 
-    const driver = new HTMLDriver(events);
+    const extractor = new HTMLScriptExtractor(events);
 
     const fullPath = path.resolve(process.cwd(), "fixtures/htmlDriver.html");
     const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
-    driver.parseHTML(source);
+    extractor.parseHTML(source);
 
     assert.deepEqual(actualSequence, expectedSequence);
   }
