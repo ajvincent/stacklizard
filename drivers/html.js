@@ -4,7 +4,7 @@ const fs = require("fs").promises;
 const path = require("path");
 
 const JSDriver = require("./javascript");
-const ScriptExtractor = require("./html-utilities/scriptExtractor");
+const ScriptExtractor = require("./utilities/html/scriptExtractor");
 
 const outside = Symbol("outside the project root");
 

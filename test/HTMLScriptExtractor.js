@@ -3,7 +3,7 @@ const assert = require("assert").strict;
 const fs = require("fs").promises;
 const path = require("path");
 const EventEmitter = require("events");
-const HTMLScriptExtractor = require("../drivers/html-utilities/scriptExtractor");
+const HTMLScriptExtractor = require("../drivers/utilities/html/scriptExtractor");
 
 it(
   "HTMLScriptExtractor correctly parses out relevant scripts and HTML references",
