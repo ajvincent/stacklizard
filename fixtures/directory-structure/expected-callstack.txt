@@ -3,9 +3,9 @@
     - c(), await a/a.js:16 CallExpression[0], async a/a.js:15 FunctionExpression[0], accessor
       - b(), await a/a.js:12 MemberExpression[0], async a/a.js:11 FunctionExpression[0]
         - a(), await a/a.js:8 CallExpression[1], async a/a.js:7 FunctionExpression[0]
-        - (lambda)(), await b/b.html:15 CallExpression[0], async b/b.html:14 ArrowFunctionExpression[0]
+        - (lambda)(), await b/b.html:16 CallExpression[0], async b/b.html:15 ArrowFunctionExpression[0]
       - A(), await a/a.js:4 Identifier[1], async a/a.js:3 FunctionDeclaration[0], constructor
         - A(), await b/b.js:1 NewExpression[0]
-        - (lambda)(), await b/b.html:12 NewExpression[0], async b/b.html:11 FunctionExpression[0]
+        - (lambda)(), await b/b.html:13 NewExpression[0], async b/b.html:12 FunctionExpression[0]
 - **SyntaxError**: async a/a.js:15 FunctionExpression[0], accessor
 - **SyntaxError**: async a/a.js:3 FunctionDeclaration[0], constructor

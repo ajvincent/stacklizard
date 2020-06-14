@@ -86,9 +86,8 @@ describe("HTMLParseDriver", function() {
     });
 
     it("disallows jumping out of the sandbox", function() {
-      const expected = "";
       const actual = driver.resolveURI("b/", "../../top-functions/fixture.js");
-      assert.equal(actual, expected);
+      assert.equal(typeof actual, "symbol");
     });
 
     it("will let someone clever drop back into the sandbox", function() {

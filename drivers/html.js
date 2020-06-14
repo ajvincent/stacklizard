@@ -6,6 +6,8 @@ const path = require("path");
 const JSDriver = require("./javascript");
 const ScriptExtractor = require("./html-utilities/scriptExtractor");
 
+const outside = Symbol("outside the project root");
+
 class HTMLParseDriver extends JSDriver {
   constructor(rootDir, options = {}) {
     super(rootDir, options);
@@ -14,6 +16,16 @@ class HTMLParseDriver extends JSDriver {
     this.pathToHTML = "";
   }
 
+  /**
+   * Perform an analysis based on a configuration.
+   *
+   * @param {JSONObject} config The configuration for this driver.
+   *
+   * @public
+   * @returns {Object} A dictionary object:
+   *   startAsync: The start node indicated by config.markAsync.
+   *   asyncRefs:  Map() of async nodes to corresponding await nodes and their async callers.
+   */
   async analyzeByConfiguration(config) {
     let ignoreFilters = [];
     if (Array.isArray(config.ignore)) {
@@ -72,6 +84,12 @@ class HTMLParseDriver extends JSDriver {
     return rv;
   }
 
+  /**
+   * Append JavaScript sources to our scope, from parsing a HTML file.
+   * @param {string} pathToHTML
+   *
+   * @public
+   */
   async appendSourcesViaHTML(pathToHTML) {
     if (this.pathToHTML)
       throw new Error("HTML file already parsed");
@@ -81,7 +99,6 @@ class HTMLParseDriver extends JSDriver {
       throw new Error("HTML file lives outside project root directory: " + pathToHTML);
 
     this.pathToHTML = pathToHTML;
-    this.fullPathToHTML = fullPath;
 
     const scriptExtractor = new ScriptExtractor();
     let scriptCallbacks = this.getScriptCallbacks(scriptExtractor);
@@ -95,6 +112,12 @@ class HTMLParseDriver extends JSDriver {
     }
   }
 
+  /**
+   * Build a priority queue of callbacks for handling script references.
+   * @param {ScriptExtractor} scriptExtractor
+   *
+   * @returns {Function[][]} The priority queue.
+   */
   getScriptCallbacks(scriptExtractor) {
     // Order of processing:  baseHref, loadscript + inlinescript, eventhandler
     const baseHrefHandling = [];
@@ -109,7 +132,7 @@ class HTMLParseDriver extends JSDriver {
       baseUpdated = true;
       baseHrefHandling.unshift(() => {
         baseHref = this.resolveURI(baseHref, href);
-        if (baseHref === "")
+        if (baseHref === outside)
           throw new Error("baseHref lives outside project root directory: " + href);
       });
     });
@@ -123,8 +146,17 @@ class HTMLParseDriver extends JSDriver {
     scriptExtractor.events.on("loadscript", async (src) => {
       loadScriptCallbacks.push(async () => {
         const uri = this.resolveURI(baseHref, src);
-        if (uri === "")
+        if (uri === outside) {
+          /* XXX ajvincent Unfortunately, many, many projects don't rely on
+          local copies of project code.  So this is probably the wrong thing
+          to do.  But for now, it's enough.
+
+          The alternative would be a complicated URL mapping resolveURI
+          function, which I don't want to write right now.
+          */
           throw new Error("src lives outside project root directory: " + src);
+        }
+
         await this.appendJSFile(uri);
       });
     });
@@ -149,7 +181,7 @@ class HTMLParseDriver extends JSDriver {
       });
     });
 
-    // We're not going to handle frames.  That's a different scope, and gets ugly.
+    // I am not going to handle frames right now.  That's a different scope, and gets ugly.
 
     return [
       baseHrefHandling,
@@ -158,11 +190,18 @@ class HTMLParseDriver extends JSDriver {
     ];
   }
 
+  /**
+   * Resolve a URI within the project root.
+   * @param {string} baseHref
+   * @param {string} relativePath
+   *
+   * @returns {string|symbol} The resolved URI, or a symbol when we step outside the root.
+   */
   resolveURI(baseHref, relativePath) {
     let fullAbsolutePath = path.join(this.fullRoot, baseHref, relativePath);
     if (fullAbsolutePath.startsWith(this.fullRoot))
       return fullAbsolutePath.substr(this.fullRoot.length + 1);
-    return "";
+    return outside;
   }
 }
 
