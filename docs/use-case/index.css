@@ -1,0 +1,27 @@
+#textarea {
+  width: 800px;
+  height: 600px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+#iframe {
+  width: 400px;
+  height: 200px;
+  position: absolute;
+  left: 810px;
+  top: 0px;
+}
+
+#next {
+  position: absolute;
+  left: 810px;
+  top: 210px;
+}
+
+#steps {
+  position: absolute;
+  left: 810px;
+  top: 240px;
+}

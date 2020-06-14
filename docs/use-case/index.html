@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Use-case demonstration</title>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" type="text/css" href="index.css">
+  <script src="PromiseTypes.js"></script>
+  <script src="index.js"></script>
+</head>
+<body>
+  <textarea id="textarea" readonly onchange="refreshB();"></textarea>
+  <iframe id="iframe" src="about:blank"></iframe>
+  <button id="next" onclick="doNextPromise();">Next</button>
+  <ol id="steps">
+    <li>Mark A.prototype.e as async</li>
+    <li>d: await this.e()</li>
+    <li>Mark a.prototype.d as async</li>
+    <li>A: await this.d()</li>
+    <li>Mark A as async</li>
+  </ol>
+</body>
+</html>
