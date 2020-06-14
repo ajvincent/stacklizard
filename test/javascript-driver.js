@@ -43,11 +43,16 @@ async function fixtureTest(fixture) {
     json.markAsync.functionIndex
   );
 
+  const driverConfig = driver.getConfiguration(startAsync);
+
   const asyncRefs = driver.getAsyncStacks(startAsync);
 
   const serializer = StackLizard.getSerializer(
     "markdown", startAsync, asyncRefs, driver, {nested: true}
   );
+
+  const serializerConfig = serializer.getConfiguration();
+
   const analysis = serializer.serialize();
 
   await fs.writeFile(
@@ -62,6 +67,31 @@ async function fixtureTest(fixture) {
   );
 
   assert.equal(analysis, expected);
+
+  assert.equal(driverConfig.type, "javascript");
+
+  // generate and read configuration tests
+  {
+    let otherDriver = StackLizard.buildDriver(
+      driverConfig.type, driverConfig.root, driverConfig.options
+    );
+
+    const {
+      startAsync,
+      asyncRefs
+    } = await otherDriver.analyzeByConfiguration(driverConfig);
+
+    let otherSerializer = StackLizard.getSerializer(
+      serializerConfig.type,
+      startAsync,
+      asyncRefs,
+      otherDriver,
+      serializerConfig.options
+    );
+
+    const otherAnalysis = otherSerializer.serialize();
+    assert.equal(otherAnalysis, expected);
+  }
 }
 
 describe(
