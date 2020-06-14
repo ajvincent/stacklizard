@@ -34,12 +34,15 @@ class HTMLParseDriver extends JSDriver {
     this.fullPathToHTML = fullPath;
 
     const scriptExtractor = new ScriptExtractor();
-    const scriptCallbacks = this.getScriptCallbacks(scriptExtractor);
+    let scriptCallbacks = this.getScriptCallbacks(scriptExtractor);
 
     const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
     scriptExtractor.parseHTML(source);
 
-    scriptCallbacks.flat().forEach(async callback => await callback());
+    scriptCallbacks = scriptCallbacks.flat();
+    for (let i = 0; i < scriptCallbacks.length; i++) {
+      await scriptCallbacks[i]();
+    }
   }
 
   getScriptCallbacks(scriptExtractor) {
@@ -48,7 +51,7 @@ class HTMLParseDriver extends JSDriver {
     const loadScriptCallbacks = [];
     const eventHandlerCallbacks = [];
 
-    let baseHref = this.pathToHTML.replace(/\/[^\/]*$/, "/"), baseUpdated = false;
+    let baseHref = this.pathToHTML.replace(/\/[^/]*$/, "/"), baseUpdated = false;
 
     scriptExtractor.events.on("baseHref", (href) => {
       if (baseUpdated)
@@ -72,7 +75,6 @@ class HTMLParseDriver extends JSDriver {
         const uri = this.resolveURI(baseHref, src);
         if (uri === "")
           throw new Error("src lives outside project root directory: " + src);
-        console.log("Reading JavaScript file: " + uri);
         await this.appendJSFile(uri);
       });
     });
@@ -82,7 +84,7 @@ class HTMLParseDriver extends JSDriver {
         this.appendSource(
           "(event handler)",
           0,
-          "function(event) {"
+          "void(function(event) {"
         );
         this.appendSource(
           `${this.pathToHTML}:${name}`,
@@ -92,7 +94,7 @@ class HTMLParseDriver extends JSDriver {
         this.appendSource(
           "(event handler)",
           0,
-          "}"
+          "});"
         );
       });
     });
