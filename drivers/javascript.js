@@ -320,7 +320,56 @@ JSDriver.prototype = {
 
     const asyncRefs = this.getAsyncStacks(startAsync);
 
+    this.cachedConfiguration = config;
+
     return { startAsync, asyncRefs };
+  },
+
+  /**
+   * Get a JSON-serializable configuration object.
+   *
+   * @param {Node} startAsync The starting async node.
+   *
+   * @public
+   * @returns {Object}
+   */
+  getConfiguration: function(startAsync) {
+    if (this.cachedConfiguration)
+      return this.cachedConfiguration;
+
+    let functionIndex = 0;
+    {
+      const key = this.fileAndLine(startAsync);
+      let nodeList = this.nodesByLine.get(key);
+      nodeList = nodeList.filter(isFunctionNode);
+      functionIndex = nodeList.indexOf(startAsync);
+    }
+
+    return {
+      type: "javascript",
+
+      options: {
+      },
+
+      root: this.rootDir,
+
+      scripts: Array.from(this.sources),
+
+      ignore: Array.from(this.ignoredNodes).map((ignore => {
+        return {
+          path: ignore.file,
+          line: ignore.line,
+          type: ignore.type,
+          index: this.indexOfNodeOnLine(ignore),
+        };
+      })),
+
+      markAsync: {
+        path: startAsync.file,
+        line: startAsync.line,
+        functionIndex,
+      },
+    };
   },
 
   /**

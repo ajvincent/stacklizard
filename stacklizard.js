@@ -6,8 +6,9 @@ const StackLizard = {
     return new driverCtor(rootDir, options);
   },
 
-  getSerializer(type) {
-    return require("./serializers/" + type);
+  getSerializer(type, startAsync, asyncRefs, driver, options) {
+    const ctor = require("./serializers/" + type);
+    return new ctor(startAsync, asyncRefs, driver, options);
   }
 };
 

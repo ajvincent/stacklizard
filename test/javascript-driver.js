@@ -45,8 +45,10 @@ async function fixtureTest(fixture) {
 
   const asyncRefs = driver.getAsyncStacks(startAsync);
 
-  const serializer = StackLizard.getSerializer("markdown");
-  const analysis = serializer(startAsync, asyncRefs, driver, {nested: true});
+  const serializer = StackLizard.getSerializer(
+    "markdown", startAsync, asyncRefs, driver, {nested: true}
+  );
+  const analysis = serializer.serialize();
 
   await fs.writeFile(
     path.resolve(root, "actual-callstack.txt"),
@@ -100,11 +102,14 @@ it ("JSDriver configuration-driven test", async function() {
 
   const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver);
 
-  const serializer = StackLizard.getSerializer(config.serializer.type);
-
-  const analysis = serializer(
-    startAsync, asyncRefs, parseDriver, config.serializer.options || {}
+  const serializer = StackLizard.getSerializer(
+    config.serializer.type,
+    startAsync,
+    asyncRefs,
+    parseDriver,
+    config.serializer.options || {}
   );
+  const analysis = serializer.serialize();
 
   await fs.writeFile(
     path.resolve(rootDir, "actual-callstack.txt"),

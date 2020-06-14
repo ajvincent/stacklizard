@@ -5,6 +5,7 @@ function MarkdownSerializer(root, asyncRefs, parseDriver, options = {}) {
   this.asyncRefs = asyncRefs;
   this.parseDriver = parseDriver;
   this.indentBlock = options.nested ? "  " : "";
+  this.options = options;
 
   this.scheduledNodes = new WeakSet();
 
@@ -73,15 +74,13 @@ MarkdownSerializer.prototype.appendAsyncSyntaxErrors = function() {
     rv += "- **SyntaxError**: async " + this.parseDriver.serializeNode(n) + "\n";
   });
   return rv;
-}
-
-module.exports = function(root, asyncRefs, parseDriver, options)
-{
-  const serializer = new MarkdownSerializer(
-    root,
-    asyncRefs,
-    parseDriver,
-    options
-  );
-  return serializer.serialize();
 };
+
+MarkdownSerializer.prototype.getConfiguration = function() {
+  return {
+    type: "markdown",
+    options: this.options
+  };
+};
+
+module.exports = MarkdownSerializer;

@@ -64,19 +64,22 @@ const subcommandMap = new Map(/* subcommand: execute */);
 
   subcommandMap.set("standalone", async (args) => {
     const dir = path.dirname(args.path), leaf = path.basename(args.path);
-    const driver = StackLizard.buildDriver("javascript", dir);
-    await driver.appendJSFile(leaf);
-    driver.parseSources();
+    const parseDriver = StackLizard.buildDriver("javascript", dir);
+    await parseDriver.appendJSFile(leaf);
+    parseDriver.parseSources();
 
-    const startAsync = driver.functionNodeFromLine(
+    const startAsync = parseDriver.functionNodeFromLine(
       leaf, args.line, args.fnIndex
     );
-    const asyncRefs = driver.getAsyncStacks(startAsync);
+    const asyncRefs = parseDriver.getAsyncStacks(startAsync);
 
-    const serializer = StackLizard.getSerializer("markdown");
-    const analysis = serializer(startAsync, asyncRefs, driver, {nested: true});
+    const serializer = StackLizard.getSerializer(
+      "markdown", startAsync, asyncRefs, parseDriver, {nested: true}
+    );
 
-    console.log(analysis);
+    console.log(serializer.serialize());
+
+    await maybeSaveConfig(args, parseDriver, serializer, startAsync);
   });
 }
 
@@ -100,9 +103,9 @@ const subcommandMap = new Map(/* subcommand: execute */);
 
   subcommandMap.set("configuration", async (args) => {
     const pathToConfig = path.resolve(process.cwd(), args.json);
-    const config = JSON.parse(await fs.readFile(pathToConfig));
+    const config = JSON.parse(await fs.readFile(pathToConfig, { encoding: "utf-8"}));
 
-    const rootDir = path.resolve(path.dirname(pathToConfig), config.driver.root);
+    const rootDir = path.resolve(process.cwd(), config.driver.root);
     const parseDriver = StackLizard.buildDriver(
       config.driver.type,
       rootDir,
@@ -111,13 +114,38 @@ const subcommandMap = new Map(/* subcommand: execute */);
 
     const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver);
 
-    const serializer = StackLizard.getSerializer(config.serializer.type);
+    const serializer = StackLizard.getSerializer(
+      config.serializer.type,
+      startAsync,
+      asyncRefs,
+      parseDriver,
+      config.serializer.options || {}
+    );
+    console.log(serializer.serialize());
 
-    console.log(serializer(
-      startAsync, asyncRefs, parseDriver, config.serializer.options || {}
-    ));
+    await maybeSaveConfig(args, parseDriver, serializer, startAsync);
   });
 }
+
+async function maybeSaveConfig(args, parseDriver, serializer, startAsync) {
+  if (!args.save_config)
+    return;
+  const output = JSON.stringify({
+    driver: parseDriver.getConfiguration(startAsync),
+    serializer: serializer.getConfiguration()
+  }, null, 2) + "\n";
+
+  const pathToConfig = path.resolve(process.cwd(), args.save_config);
+  await fs.writeFile(pathToConfig, output, { encoding: "utf-8" } );
+}
+
+argparser.addArgument(
+  "--save-config",
+  {
+    action: "store",
+    help: "A file to save the configuration of this job to."
+  }
+);
 
 module.exports = {
   execute: async function() {
