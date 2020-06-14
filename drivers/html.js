@@ -15,11 +15,61 @@ class HTMLParseDriver extends JSDriver {
   }
 
   async analyzeByConfiguration(config) {
-    throw new Error("Not yet implemented");
+    let ignoreFilters = [];
+    if (Array.isArray(config.ignore)) {
+      ignoreFilters = config.ignore.map(ignoreData =>
+        n => n.type === ignoreData.type
+      );
+    }
+
+    await this.appendSourcesViaHTML(config.pathToHTML);
+
+    this.parseSources();
+
+    if (Array.isArray(config.ignore)) {
+      config.ignore.map((ignore, filterIndex) => {
+        const ignorable = this.nodeByLineFilterIndex(
+          ignore.path,
+          ignore.line,
+          ignore.index,
+          ignoreFilters[filterIndex]
+        );
+        this.markIgnored(ignorable);
+      });
+    }
+
+    const startAsync = this.functionNodeFromLine(
+      config.markAsync.path,
+      config.markAsync.line,
+      config.markAsync.functionIndex || 0
+    );
+
+    const asyncRefs = this.getAsyncStacks(startAsync);
+
+    this.cachedConfiguration = config;
+
+    return { startAsync, asyncRefs };
   }
 
+  /**
+   * Get a JSON-serializable configuration object.
+   *
+   * @param {Node} startAsync The starting async node.
+   *
+   * @public
+   * @returns {Object}
+   */
   getConfiguration(startAsync) {
-    throw new Error("Not yet implemented");
+    if (this.cachedConfiguration)
+      return this.cachedConfiguration;
+
+    let rv = JSDriver.prototype.getConfiguration.apply(this, [startAsync]);
+    delete rv.scripts;
+
+    rv.type = "html";
+    rv.pathToHTML = this.pathToHTML;
+
+    return rv;
   }
 
   async appendSourcesViaHTML(pathToHTML) {
