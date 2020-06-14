@@ -734,7 +734,7 @@ JSDriver.prototype = {
     if (this.valueNodeToKeyNode.has(node))
       return this.getNodeName(this.valueNodeToKeyNode.get(node));
 
-    if (node.type.startsWith("Function")) {
+    if (isFunctionNode(node)) {
       return node.id ? this.getNodeName(node.id) : "(lambda)";
     }
 
