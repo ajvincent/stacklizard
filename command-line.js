@@ -62,6 +62,14 @@ const subcommandMap = new Map(/* subcommand: execute */);
     }
   );
 
+  standalone.addArgument(
+    "--save-config",
+    {
+      action: "store",
+      help: "A file to save the configuration of this job to."
+    }
+  );
+
   subcommandMap.set("standalone", async (args) => {
     const dir = path.dirname(args.path), leaf = path.basename(args.path);
     const parseDriver = StackLizard.buildDriver("javascript", dir);
@@ -70,6 +78,88 @@ const subcommandMap = new Map(/* subcommand: execute */);
 
     const startAsync = parseDriver.functionNodeFromLine(
       leaf, args.line, args.fnIndex
+    );
+    const asyncRefs = parseDriver.getAsyncStacks(startAsync);
+
+    const serializer = StackLizard.getSerializer(
+      "markdown", startAsync, asyncRefs, parseDriver, {nested: true}
+    );
+
+    console.log(serializer.serialize());
+
+    await maybeSaveConfig(args, parseDriver, serializer, startAsync);
+  });
+}
+
+{
+  const htmlDriver = subparsers.addParser(
+    "html",
+    {
+      title: "Script analysis starting in a directory with a HTML file",
+      help:  "Script analysis starting in a directory with a HTML file",
+      addHelp: true,
+    }
+  );
+
+  htmlDriver.addArgument(
+    "rootDirectory",
+    {
+      action: "store",
+      help: "The path to the project's root directory."
+    }
+  );
+
+  htmlDriver.addArgument(
+    "pathToHTML",
+    {
+      action: "store",
+      help: "The location of the HTML file relative to the project's root directory."
+    },
+  );
+
+  htmlDriver.addArgument(
+    "pathToJS",
+    {
+      action: "store",
+      help: "The location of the file containing the async function, relative to the project's root directory."
+    }
+  )
+
+  htmlDriver.addArgument(
+    "line",
+    {
+      action: "store",
+      type: (x) => parseInt(x, 10),
+      help: "The line number of the function.",
+    }
+  );
+
+  htmlDriver.addArgument(
+    "--save-config",
+    {
+      action: "store",
+      help: "A file to save the configuration of this job to."
+    }
+  );
+
+  htmlDriver.addArgument(
+    "--fnIndex",
+    {
+      action: "store",
+      defaultValue: 0,
+      type: (x) => parseInt(x, 10),
+      help: "If there is more than one function on the line, the index of the function.",
+    }
+  );
+
+  subcommandMap.set("html", async (args) => {
+    const parseDriver = StackLizard.buildDriver("html", args.rootDirectory);
+    await parseDriver.appendSourcesViaHTML(args.pathToHTML);
+
+    parseDriver.parseSources();
+
+    const startAsync = parseDriver.functionNodeFromLine(
+      args.pathToJS, args.line, args.fnIndex
     );
     const asyncRefs = parseDriver.getAsyncStacks(startAsync);
 
@@ -138,14 +228,6 @@ async function maybeSaveConfig(args, parseDriver, serializer, startAsync) {
   const pathToConfig = path.resolve(process.cwd(), args.save_config);
   await fs.writeFile(pathToConfig, output, { encoding: "utf-8" } );
 }
-
-argparser.addArgument(
-  "--save-config",
-  {
-    action: "store",
-    help: "A file to save the configuration of this job to."
-  }
-);
 
 module.exports = {
   execute: async function() {
