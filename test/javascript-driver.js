@@ -86,7 +86,7 @@ describe(
   }
 );
 
-it ("JSDriver configuration-driven test", async function() {
+it("JSDriver configuration-driven test", async function() {
   const pathToConfig = path.resolve(
     process.cwd(),
     "fixtures/object-define-name-mismatch/command-line-config.json"

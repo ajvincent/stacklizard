@@ -1,11 +1,11 @@
-- A.prototype.e(), a/a.js: async 26
-  - A.prototype.d(), a/a.js: async 19, await 22
-    - A.prototype.c(), a/a.js: async 15, await 16, getter
-      - A.prototype.b(), a/a.js: async 11, await 12
-        - A.prototype.a(), a/a.js: async 7, await 8
-      - A(), a/a.js: async 3, await 4
-        - B, b/b.js: await 1, instance
-          - B.c, b/b.html: await 26, handler
-          - B.d, b/b.html: await 28, handler
-        - C, b/b.html: await 12, listener
-          - C.b(), b/b.html: await 15, listener
+- e(), async a/a.js:26 FunctionExpression[0]
+  - d(), await a/a.js:22 CallExpression[0], async a/a.js:19 FunctionExpression[0]
+    - c(), await a/a.js:16 CallExpression[0], async a/a.js:15 FunctionExpression[0], accessor
+      - b(), await a/a.js:12 MemberExpression[0], async a/a.js:11 FunctionExpression[0]
+        - a(), await a/a.js:8 CallExpression[1], async a/a.js:7 FunctionExpression[0]
+        - (lambda)(), await b/b.html:15 CallExpression[0], async b/b.html:14 ArrowFunctionExpression[0]
+      - A(), await a/a.js:4 Identifier[1], async a/a.js:3 FunctionDeclaration[0], constructor
+        - A(), await b/b.js:1 NewExpression[0]
+        - (lambda)(), await b/b.html:12 NewExpression[0], async b/b.html:11 FunctionExpression[0]
+- **SyntaxError**: async a/a.js:15 FunctionExpression[0], accessor
+- **SyntaxError**: async a/a.js:3 FunctionDeclaration[0], constructor
