@@ -191,6 +191,35 @@ const subcommandMap = new Map(/* subcommand: execute */);
     }
   );
 
+  configuration.addArgument(
+    "--ignore",
+    {
+      action: "store",
+      type: (data) => {
+        const re = /^(.+):(\d+) (.+)\[(\d+)]/;
+        const [path, lineStr, type, indexStr] = Array.from(re.exec(data)).slice(1);
+        const line = parseInt(lineStr, 10);
+        const index = parseInt(indexStr, 10);
+
+        return {
+          path,
+          line,
+          type,
+          index
+        };
+      },
+      help: "Add a node as formatted from a previous serialization to the ignore list"
+    }
+  );
+
+  configuration.addArgument(
+    "--save-config",
+    {
+      action: "store",
+      help: "A file to save the configuration of this job to."
+    }
+  );
+
   subcommandMap.set("configuration", async (args) => {
     const pathToConfig = path.resolve(process.cwd(), args.json);
     const config = JSON.parse(await fs.readFile(pathToConfig, { encoding: "utf-8"}));
@@ -202,7 +231,9 @@ const subcommandMap = new Map(/* subcommand: execute */);
       config.driver.options || {}
     );
 
-    const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver);
+    const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver, {
+      newIgnore: args.ignore
+    });
 
     const serializer = StackLizard.getSerializer(
       config.serializer.type,

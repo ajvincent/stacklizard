@@ -279,14 +279,15 @@ JSDriver.prototype = {
   /**
    * Perform an analysis based on a configuration.
    *
-   * @param {JSONObject} config The configuration for this driver.
+   * @param {JSONObject} config      The configuration for this driver.
+   * @param {Object}     adjustments Adjustments to the configuration (usually from command-line).
    *
    * @public
    * @returns {Object} A dictionary object:
    *   startAsync: The start node indicated by config.markAsync.
    *   asyncRefs:  Map() of async nodes to corresponding await nodes and their async callers.
    */
-  analyzeByConfiguration: async function(config) {
+  analyzeByConfiguration: async function(config, adjustments = {}) {
     let ignoreFilters = [];
     if (Array.isArray(config.ignore)) {
       ignoreFilters = config.ignore.map(ignoreData =>
@@ -312,6 +313,18 @@ JSDriver.prototype = {
         );
         this.markIgnored(ignorable);
       });
+    }
+
+    if ("newIgnore" in adjustments) {
+      const ignorable = this.nodeByLineFilterIndex(
+        adjustments.newIgnore.path,
+        adjustments.newIgnore.line,
+        adjustments.newIgnore.index,
+        n => n.type === adjustments.newIgnore.type
+      );
+      this.markIgnored(ignorable);
+
+      config.ignore.push(adjustments.newIgnore);
     }
 
     const startAsync = this.functionNodeFromLine(
