@@ -1,6 +1,6 @@
 {
   "name": "stacklizard",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A static analysis tool for identifying ancestors of a JavaScript function that must be async if that function becomes async.",
   "main": "stacklizard.js",
   "scripts": {
