@@ -22,11 +22,17 @@ MarkdownSerializer.prototype.appendNodes = function(indent, key)
   const childData = this.asyncRefs.get(key);
   let rv = "";
 
-  for (let i = 0; i < childData.length; i++)
-    this.scheduledNodes.add(childData[i]);
+  let children = [];
 
-  for (let i = 0; i < childData.length; i++)
-    rv += this.serializeChildData(indent, childData[i]);
+  for (let i = 0; i < childData.length; i++) {
+    if (this.scheduledNodes.has(childData[i]))
+      continue;
+    this.scheduledNodes.add(childData[i]);
+    children.push(childData[i]);
+  }
+
+  for (let i = 0; i < children.length; i++)
+    rv += this.serializeChildData(indent, children[i]);
 
   return rv;
 };
@@ -52,10 +58,15 @@ MarkdownSerializer.prototype.serializeChildData = function(
 
   rv += "\n";
 
-  if (asyncNode &&
-      this.asyncRefs.has(asyncNode) &&
-      !this.scheduledNodes.has(asyncNode))
-    rv += this.appendNodes(indent + this.indentBlock, asyncNode);
+  if (asyncNode && this.asyncRefs.has(asyncNode)) {
+    try {
+      rv += this.appendNodes(indent + this.indentBlock, asyncNode);
+    }
+    catch (ex) {
+      console.error(this.parseDriver.fileAndLine(asyncNode));
+      throw ex;
+    }
+  }
 
   return rv;
 };
