@@ -118,7 +118,12 @@ npm install stacklizard
 ```
 ## Command-line Usage
 
-From the command-line, you have several subcommands:
+From the command-line, you have several subcommands.  Generally speaking, I recommend the following:
+1. Using standalone or html subcommands to generate an initial configuration file
+1. Altering the configuration file as necessary
+1. Using the configuration subcommand with the generated configuration file to create revised results.
+1. Repeat as you desire.
+
 ### standalone
 
 This reads a single JavaScript file, marks one function async as you requested (by line number and optionally a "function index", the index of the function among the list of functions on that line), then generates a stack trace.
@@ -246,4 +251,17 @@ async function doTheAnalysis(config) {
   // Serialize the results in a human-readable form.
   console.log(serializer.serialize());
 }
+```
+
+## A few notes
+
+* StackLizard picks up await nodes by their local name ("b", not "A.prototype.b"), and marks them most aggressively, sometimes too much so.  You can override this and tell StackLizard to ignore a node via the `ignore` parameter in a configuration file (recommended) or with code like this:
+```javascript
+  const ignorable = this.nodeByLineFilterIndex(
+    ignore.path,
+    ignore.line,
+    ignore.index,
+    n => n.type === ignore.type
+  );
+  this.markIgnored(ignorable);
 ```
