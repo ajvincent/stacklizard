@@ -138,6 +138,10 @@ This takes a configuration file you've generated via --save-config with some opt
 
 Documentation for the configuration file format is at [sample-config.json.yaml](sample-config.json.yaml) in this repository.
 
+Optional arguments:
+- `--ignore "pathToFile:line type[index]"` to mark a node ignored.  Cut & paste the string from an earlier serialization.
+- `--save-config path/to/json ` where you can specify a location to write a JSON configuration file for reuse.
+
 ### html
 
 This takes a few arguments:
