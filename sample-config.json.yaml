@@ -12,6 +12,9 @@
     # The root directory for all parsing.
     "root": "fixtures/object-define-name-mismatch",
 
+    # For the HTML driver, the HTML file to parse for JavaScript files.
+    "pathToHTML": "b/b.html",
+
     # For the JavaScript driver, the list of raw JavaScript files you want to
     # parse.  Don't use this option if you're going to parse HTML files, or
     # something with a driver pre-defined to load JavaScript files by parsing
