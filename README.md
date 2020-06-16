@@ -108,3 +108,142 @@ At this point you might throw your hands up in frustration (and rightly so).  Bu
 ```
 
 Notably, StackLizard doesn't fix these problems for you, but it does point them out.
+
+## Installation
+
+StackLizard should be treated as a NPM module, and installed as such:
+
+```sh
+npm install stacklizard
+```
+## Command-line Usage
+
+From the command-line, you have several subcommands:
+### standalone
+
+This reads a single JavaScript file, marks one function async as you requested (by line number and optionally a "function index", the index of the function among the list of functions on that line), then generates a stack trace.
+
+Optional arguments:
+- `--fnIndex=0` to specify the 0th function on the line to mark async
+- `--save-config path/to/json ` where you can specify a location to write a JSON configuration file for reuse.
+
+### configuration
+
+This takes a configuration file you've generated via --save-config with some optional hand-editing, and re-runs the job based on that configuration.
+
+Documentation for the configuration file format is at [sample-config.json.yaml](sample-config.json.yaml) in this repository.
+
+### html
+
+This takes a few arguments:
+- A root directory for a HTML project
+- A path to the HTML file where scripts run
+- A path to the HTML or JavaScript file containing the function to mark async
+- The line number of the function
+- `--fnIndex=0` to specify the 0th function on the line to mark async
+- `--save-config path/to/json ` where you can specify a location to write a JSON configuration file for reuse.
+
+## Usage within Node
+
+### Standalone mode
+```javascript
+const StackLizard = require("stacklizard");
+
+(async function() {
+  const parseDriver = StackLizard.buildDriver("javascript", rootDir, options = {});
+
+  // option 1: load from the file system
+  await parseDriver.appendJSFile("path/to/JSFile/from/rootDir"); // always a relative path
+
+  // option 2: load from in-memory string, no file i/o
+  parseDriver.appendSource(pathToFile, firstLineInFile, source); 
+
+  // Generate the Abstract Syntax Tree via espree and gather information via estraverse.
+  parseDriver.parseSources();
+
+  // Get a function AST node.
+  const startAsync = parseDriver.functionNodeFromLine(
+    "path/to/JSFile/from/rootDir", lineNumber, functionIndex
+  );
+  
+  // Mark nodes async and await as needed from the function AST node, marked async.  Returns a Map().
+  const asyncRefs = parseDriver.getAsyncStacks(startAsync);
+
+  // Build a serializer.
+  const serializer = StackLizard.getSerializer(
+    "markdown", startAsync, asyncRefs, parseDriver, {nested: true}
+  );
+
+  // Serialize the results in a human-readable form.
+  console.log(serializer.serialize());
+  
+  // Get a configuration to save to a file.
+  const configuration = {
+    driver: parseDriver.getConfiguration(startAsync),
+    serializer: serializer.getConfiguration()
+  };
+})();
+```
+
+### HTML mode
+```javascript
+(async function() {
+  const parseDriver = StackLizard.buildDriver("html", rootDirectory, options = {});
+
+  // load from the file system, and get all the JavaScript code inline and from external files
+  await parseDriver.appendSourcesViaHTML(pathToHTML);
+
+  // Generate the Abstract Syntax Tree via espree and gather information via estraverse.
+  parseDriver.parseSources();
+
+  // Get a function AST node.
+  const startAsync = parseDriver.functionNodeFromLine(
+    args.pathToJS, args.line, args.fnIndex
+  );
+
+  // Mark nodes async and await as needed from the function AST node, marked async.  Returns a Map().
+  const asyncRefs = parseDriver.getAsyncStacks(startAsync);
+
+  // Build a serializer.
+  const serializer = StackLizard.getSerializer(
+    "markdown", startAsync, asyncRefs, parseDriver, {nested: true}
+  );
+
+  // Serialize the results in a human-readable form.
+  console.log(serializer.serialize());
+
+  // Get a configuration to save to a file.
+  const configuration = {
+    driver: parseDriver.getConfiguration(startAsync),
+    serializer: serializer.getConfiguration()
+  };
+})();
+```
+
+### Configuration mode
+```javascript
+// config is a JSON object, parsed from a configuration file saved in a previous session.
+async function doTheAnalysis(config) {
+  // Build the parse driver.
+  const parseDriver = StackLizard.buildDriver(
+    config.driver.type,
+    path.resolve(process.cwd(), config.driver.root), // probably something like this
+    config.driver.options || {}
+  );
+
+  // Analyze everything at once.
+  const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver);
+
+  // Build the serializer.
+  const serializer = StackLizard.getSerializer(
+    config.serializer.type,
+    startAsync,
+    asyncRefs,
+    parseDriver,
+    config.serializer.options || {}
+  );
+
+  // Serialize the results in a human-readable form.
+  console.log(serializer.serialize());
+}
+```
