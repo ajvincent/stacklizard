@@ -36,7 +36,6 @@ async function getManifestFiles(pathToRepo) {
     mozBuildFiles = files.split("\n").filter(Boolean);
   }
 
-  debugger;
   let fileLists = [];
   for (let i = 0; i < mozBuildFiles.length; i++) {
     fileLists.push(await getXPCOMManifest(mozBuildFiles[i]));
@@ -62,7 +61,7 @@ async function getAllClasses(pathToRepo) {
   failedFiles = [];
   const manifestFiles = await getManifestFiles(path.resolve(process.cwd(), pathToRepo));
   const classList = [];
-  debugger;
+
   for (let i = 0; i < manifestFiles.length; i++) {
     classList.push(await getClasses(manifestFiles[i]));
   }

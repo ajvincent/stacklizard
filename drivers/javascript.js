@@ -425,7 +425,7 @@ JSDriver.prototype = {
   },
 
   /**
-   * Get a stringified representation of the code we will parse.comment
+   * Get a stringified representation of the code we will parse.
    *
    * @public
    * @returns {string} The code, annotated by original source file and line number.
@@ -466,6 +466,7 @@ JSDriver.prototype = {
    */
   parseSources: function() {
     const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
+    this.parsingBuffer = [];
     const listeners = new MultiplexListeners();
 
     // First pass, build up references to files, line numbers, and JS scopes.
@@ -515,6 +516,8 @@ JSDriver.prototype = {
 
     listeners.append(this.functionStackListener());
     listeners.append(this.awaitExpressionListener());
+
+    this.appendExtraListeners(listeners);
 
     estraverse.traverse(ast, listeners);
   },
@@ -674,6 +677,16 @@ JSDriver.prototype = {
   },
 
   /**
+   * Add extra listeners for special metadata.
+   *
+   * @param {MultiplexListeners} traverseListeners
+   * @protected
+   */
+  appendExtraListeners: function(traverseListeners) {
+    voidFunc(traverseListeners);
+  },
+
+  /**
    * Manage references to other nodes.
    * @param {*} node
    *
@@ -772,6 +785,8 @@ JSDriver.prototype = {
         return `{ ${node.properties.map(n => this.getNodeName(n))} }`;
       case "Property":
         return this.getNodeName(node.key);
+      case "StringLiteral":
+        return node.value;
       case "ThisExpression":
         return "this";
       case "VariableDeclarator":

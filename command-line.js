@@ -173,6 +173,44 @@ const subcommandMap = new Map(/* subcommand: execute */);
   });
 }
 
+// mozilla
+{
+  const mozilla = subparsers.addParser(
+    "mozilla",
+    {
+      title: "Script analysis starting in a mozilla source directory",
+      help:  "Script analysis starting in a mozilla source directory",
+      addHelp: true,
+    }
+  );
+
+  mozilla.addArgument(
+    "rootDirectory",
+    {
+      action: "store",
+      help: "The path to the repository's root directory."
+    }
+  );
+
+  /*
+  mozilla.addArgument(
+    "objdir",
+    {
+      action: "store",
+      help: "The path to an object directory containing a build.  Used for XPT analysis."
+    }
+  );
+  */
+
+  subcommandMap.set("mozilla", async (args) => {
+    const parseDriver = StackLizard.buildDriver("mozilla", args.rootDirectory);
+    await parseDriver.gatherXPCOMClassData();
+    /*
+    await parseDriver.gatherXPTData();
+    */
+  });
+}
+
 {
   const configuration = subparsers.addParser(
     "configuration",
