@@ -739,14 +739,24 @@ JSDriver.prototype = {
     }
 
     switch (node.type) {
+      case "ArrayPattern":
+        return `[ ${node.elements.map(n => this.getNodeName(n))} ]`;
+      case "BinaryExpression":
+        return `${this.getNodeName}`
       case "CallExpression":
         return this.getNodeName(node.callee);
       case "Identifier":
         return node.name;
+      case "Literal":
+        return node.raw;
       case "MemberExpression":
         return this.getNodeName(node.property);
       case "NewExpression":
         return this.getNodeName(node.callee);
+      case "ObjectPattern":
+        return `{ ${node.properties.map(n => this.getNodeName(n))} }`;
+      case "Property":
+        return this.getNodeName(node.key);
       case "ThisExpression":
         return "this";
       case "VariableDeclarator":
