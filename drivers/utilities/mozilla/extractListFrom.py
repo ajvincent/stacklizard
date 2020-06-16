@@ -18,7 +18,6 @@ def parseSubstrings(contents):
       if (closeBracket == -1):
         raise Exception("didn't find the right closing bracket")
       serialized = contents[openBracket:closeBracket + 1]
-      print(serialized + "\n\n", file=sys.stderr)
       try:
         items += ast.literal_eval(serialized)
         break
