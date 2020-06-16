@@ -1,5 +1,5 @@
 # stacklizard
-A static-analysis tool to simulate marking one function async, and determining what functions and function calls must change.
+A static-analysis tool to simulate marking one JavaScript function async, and determining what functions and function calls must change.
 
 ## A simplified scenario
 Suppose you have the following code:
