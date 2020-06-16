@@ -302,6 +302,8 @@ JSDriver.prototype = {
 
     if (Array.isArray(config.ignore)) {
       config.ignore.map((ignore, filterIndex) => {
+        if (!("index" in ignore))
+          ignore.index = 0;
         const ignorable = this.nodeByLineFilterIndex(
           ignore.path,
           ignore.line,
