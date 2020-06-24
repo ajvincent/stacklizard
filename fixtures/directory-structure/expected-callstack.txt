@@ -7,5 +7,6 @@
       - A(), await a/a.js:4 Identifier[1], async a/a.js:3 FunctionDeclaration[0], constructor
         - A(), await b/b.js:1 NewExpression[0]
         - (lambda)(), await b/b.html:13 NewExpression[0], async b/b.html:12 FunctionExpression[0]
+    - (lambda)(), await b/b.js:5 CallExpression[0], async b/b.js:5 ArrowFunctionExpression[0]
 - **SyntaxError**: async a/a.js:15 FunctionExpression[0], accessor
 - **SyntaxError**: async a/a.js:3 FunctionDeclaration[0], constructor

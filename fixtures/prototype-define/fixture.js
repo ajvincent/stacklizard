@@ -36,7 +36,7 @@ A.prototype = {
   },
 
   h() {
-    return this.d() + 2;
+    this.y = this.d();
   },
 
   p: async function() {
