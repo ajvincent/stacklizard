@@ -759,7 +759,7 @@ JSDriver.prototype = {
    * @throws for unknown node types
    */
   getNodeName: function(node) {
-    if (this.valueNodeToKeyNode.has(node))
+    if (this.valueNodeToKeyNode.has(node) && (node.type !== "CallExpression"))
       return this.getNodeName(this.valueNodeToKeyNode.get(node));
 
     if (isFunctionNode(node)) {

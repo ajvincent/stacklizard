@@ -4,7 +4,8 @@
       - b(), await fixture.js:12 MemberExpression[0], async fixture.js:11 FunctionExpression[0]
         - a(), await fixture.js:8 CallExpression[1], async fixture.js:7 FunctionExpression[0]
       - A(), await fixture.js:4 Identifier[1], async fixture.js:3 FunctionDeclaration[0], constructor
-        - A(), await fixture.js:47 NewExpression[0]
-    - d(), await fixture.js:39 CallExpression[0]
+        - A(), await fixture.js:51 NewExpression[0]
+    - h(), await fixture.js:39 CallExpression[0], async fixture.js:38 FunctionExpression[0]
+    - d(), await fixture.js:43 CallExpression[0]
 - **SyntaxError**: async fixture.js:15 FunctionExpression[0], accessor
 - **SyntaxError**: async fixture.js:3 FunctionDeclaration[0], constructor
