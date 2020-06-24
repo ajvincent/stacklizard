@@ -185,29 +185,46 @@ const subcommandMap = new Map(/* subcommand: execute */);
   );
 
   mozilla.addArgument(
-    "rootDirectory",
+    "json",
     {
       action: "store",
-      help: "The path to the repository's root directory."
+      help: "The location of the configuration file."
     }
   );
 
-  /*
   mozilla.addArgument(
-    "objdir",
+    "--save-config",
     {
       action: "store",
-      help: "The path to an object directory containing a build.  Used for XPT analysis."
+      help: "A file to save the configuration of this job to."
     }
   );
-  */
 
   subcommandMap.set("mozilla", async (args) => {
-    const parseDriver = StackLizard.buildDriver("mozilla", args.rootDirectory);
-    await parseDriver.gatherXPCOMClassData();
-    /*
-    await parseDriver.gatherXPTData();
-    */
+    const pathToConfig = path.resolve(process.cwd(), args.json);
+    const config = JSON.parse(await fs.readFile(pathToConfig, { encoding: "utf-8"}));
+
+    const rootDir = path.resolve(process.cwd(), config.driver.root);
+    const parseDriver = StackLizard.buildDriver(
+      "mozilla",
+      rootDir,
+      config.driver.options || {}
+    );
+
+    const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver, {
+      newIgnore: args.ignore
+    });
+
+    const serializer = StackLizard.getSerializer(
+      config.serializer.type,
+      startAsync,
+      asyncRefs,
+      parseDriver,
+      config.serializer.options || {}
+    );
+    console.log(serializer.serialize());
+
+    await maybeSaveConfig(args, parseDriver, serializer, startAsync);
   });
 }
 
