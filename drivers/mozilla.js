@@ -35,11 +35,15 @@ class MozillaDriver {
     this.sourceToDriver = new Map(/*
       pathToFile: MozillaJSDriver || MozillaHTMLDriver
     */);
+
+    this.nodeToDriver = new Map(/* node: JSDriver */);
+
+    this.ignoredNodes = new Set(/* node */);
   }
 
   async analyzeByConfiguration(config, options) {
     if (config.type === "javascript")
-      return this.analyzeByJSConfiguration(config, options);
+      return await this.analyzeByJSConfiguration(config, options);
     throw new Error("Unsupported configuration type");
   }
 
@@ -47,6 +51,7 @@ class MozillaDriver {
     this.startingMarkAsync = config.markAsync;
 
     this.scheduledConfigs = [config];
+    let topMarkAsync = null, topAsyncRefs = new Map();
     for (let i = 0; i < this.scheduledConfigs.length; i++) {
       const currentConfig = this.scheduledConfigs[i];
       if (!this.sourceToDriver.has(currentConfig.markAsync.path)) {
@@ -54,8 +59,21 @@ class MozillaDriver {
       }
 
       const subDriver = this.sourceToDriver.get(currentConfig.markAsync.path);
-      await subDriver.analyzeByConfiguration(currentConfig);
+      let {markAsync, asyncRefs} = await subDriver.analyzeByConfiguration(currentConfig);
+      if (i === 0)
+        topMarkAsync = markAsync;
+      asyncRefs.forEach((value, key) => {
+        if (!topAsyncRefs.has(key))
+          topAsyncRefs.set(key, value);
+      });
+
+      Array.from(subDriver.ignoredNodes.values).forEach(value => this.ignoredNodes.add(value));
     }
+
+    return {
+      markAsync: topMarkAsync,
+      asyncRefs: topAsyncRefs
+    };
   }
 
   async buildSubDriver(config, options) {
@@ -70,11 +88,13 @@ class MozillaDriver {
     const data = await XPCOMClassesData(this.fullRoot);
 
     data.forEach(item => {
-      if (!("constructor" in item) ||
-          !("contract_ids" in item))
+      if (!Reflect.ownKeys(item).includes("constructor") ||
+          !Reflect.ownKeys(item).includes("contract_ids"))
         return;
-      if (this.ctorNameToContractIDs.has(item.constructor))
-        throw new Error("Overloaded name: " + item.constructor);
+      if (this.ctorNameToContractIDs.has(item.constructor)) {
+        console.error(this.ctorNameToContractIDs.get(item.constructor));
+        console.error(item);
+      }
       this.ctorNameToContractIDs.set(
         item.constructor,
         item.contract_ids
@@ -105,14 +125,23 @@ class MozillaDriver {
     throw new Error("Not yet implemented");
   }
 
-  /*
+  getNodeName(node) {
+    const subDriver = this.nodeToDriver.get(node);
+    return subDriver.getNodeName(node);
+  }
+
   serializeNode(node) {
-    let rv = JSDriver.prototype.serializeNode.call(this, node);
+    const subDriver = this.nodeToDriver.get(node);
+    let rv = subDriver.serializeNode(node);
     if (this.xpcomComponents.has(node))
       rv += ", XPCOM component";
     return rv;
   }
-  */
+
+  isAsyncSyntaxError(node) {
+    const subDriver = this.nodeToDriver.get(node);
+    return (subDriver.isAsyncSyntaxError(node) || this.xpcomComponents.has(node))
+  }
 }
 
 class MozillaJSDriver extends JSDriver {
@@ -128,12 +157,22 @@ class MozillaJSDriver extends JSDriver {
    * @private
    */
   appendExtraListeners(traverseListeners) {
+    traverseListeners.append(this.nodeToDriverListener());
     traverseListeners.append(this.exportedSymbolsListener());
+  }
+
+  nodeToDriverListener() {
+    const nodeToDriver = this.mozillaDriver.nodeToDriver;
+    return {
+      enter: (node) => {
+        nodeToDriver.set(node, this);
+      }
+    }
   }
 
   exportedSymbolsListener() {
     return {
-      async enter(node) {
+      enter: async (node) => {
         let scope = this.nodeToScope.get(node);
         // JSM scope check?
         if (scope.upper)
