@@ -132,29 +132,30 @@ class MozillaJSDriver extends JSDriver {
   }
 
   exportedSymbolsListener() {
+    const driver = this;
     return {
       async enter(node) {
-        let scope = this.nodeToScope.get(node);
+        let scope = driver.nodeToScope.get(node);
         // JSM scope check?
         if (scope.upper)
           return;
 
         if ((node.type === "VariableDeclarator") &&
-            (this.getNodeName(node.id) === "EXPORTED_SYMBOLS") &&
+            (driver.getNodeName(node.id) === "EXPORTED_SYMBOLS") &&
             (node.init.type === "ArrayExpression")) {
-          await this.handleExportedSymbols(node.init.elements, scope);
+          await driver.handleExportedSymbols(node.init.elements, scope);
         }
         else if ((node.type === "AssignmentExpression") &&
-                 (this.getNodeName(node.left) === "EXPORTED_SYMBOLS") &&
+                 (driver.getNodeName(node.left) === "EXPORTED_SYMBOLS") &&
                  (node.right.type === "ArrayExpression")) {
-          await this.handleExportedSymbols(node.right.elements, scope);
+          await driver.handleExportedSymbols(node.right.elements, scope);
         }
       }
     };
   }
 
   async handleExportedSymbols(exported, scope) {
-    exported.map(n => this.getNodeName(n)).forEach(
+    exported.map(n => JSON.parse(this.getNodeName(n))).forEach(
       name => this.mozillaDriver.findXPCOMComponents(name, scope)
     );
   }
