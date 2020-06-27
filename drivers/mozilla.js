@@ -6,6 +6,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const JSDriver = require("./javascript");
 const XPCOMClassesData = require("./utilities/mozilla/xpcom-classes");
+const getLiteralLocations = require("./utilities/mozilla/getLiteralLocations");
 
 class MozillaDriver {
   constructor(rootDir, options = {}) {
@@ -39,6 +40,8 @@ class MozillaDriver {
     this.nodeToDriver = new Map(/* node: JSDriver */);
 
     this.ignoredNodes = new Set(/* node */);
+
+    this.asyncQueue = null;
   }
 
   async analyzeByConfiguration(config, options) {
@@ -52,6 +55,8 @@ class MozillaDriver {
 
     this.scheduledConfigs = [config];
     let topMarkAsync = null, topAsyncRefs = new Map();
+    this.asyncQueue = [];
+
     for (let i = 0; i < this.scheduledConfigs.length; i++) {
       const currentConfig = this.scheduledConfigs[i];
       if (!this.sourceToDriver.has(currentConfig.markAsync.path)) {
@@ -60,6 +65,10 @@ class MozillaDriver {
 
       const subDriver = this.sourceToDriver.get(currentConfig.markAsync.path);
       let {markAsync, asyncRefs} = await subDriver.analyzeByConfiguration(currentConfig);
+
+      while (this.asyncQueue.length)
+        await this.asyncQueue.shift()();
+
       if (i === 0)
         topMarkAsync = markAsync;
       asyncRefs.forEach((value, key) => {
@@ -94,12 +103,14 @@ class MozillaDriver {
       if (this.ctorNameToContractIDs.has(item.constructor)) {
         console.error(this.ctorNameToContractIDs.get(item.constructor));
         console.error(item);
+        throw new Error("duplicated constructor name");
       }
       this.ctorNameToContractIDs.set(
         item.constructor,
         item.contract_ids
       );
     });
+    console.log("ctorName count:" + this.ctorNameToContractIDs.size);
   }
 
   async findXPCOMComponents(name, scope) {
@@ -111,6 +122,13 @@ class MozillaDriver {
     const variable = scope.set.get(name);
     const definition = variable.defs[0];
     this.xpcomComponents.add(definition.node);
+
+    let contractLocations = await Promise.all(contractIds.map(
+      contract => getLiteralLocations(this.fullRoot, contract)
+    ));
+    contractLocations = contractLocations.flat().filter(Boolean);
+    console.log(JSON.stringify(contractLocations, null, 2));
+    throw new Error("Not yet implemented");
 
     // This is where we add to this.scheduledConfigs.
     /* XXX to-do:
@@ -172,7 +190,7 @@ class MozillaJSDriver extends JSDriver {
 
   exportedSymbolsListener() {
     return {
-      enter: async (node) => {
+      enter: (node) => {
         let scope = this.nodeToScope.get(node);
         // JSM scope check?
         if (scope.upper)
@@ -181,21 +199,27 @@ class MozillaJSDriver extends JSDriver {
         if ((node.type === "VariableDeclarator") &&
             (this.getNodeName(node.id) === "EXPORTED_SYMBOLS") &&
             (node.init.type === "ArrayExpression")) {
-          await this.handleExportedSymbols(node.init.elements, scope);
+          this.mozillaDriver.asyncQueue.push(async () =>
+            await this.handleExportedSymbols(node.init.elements, scope)
+          );
         }
         else if ((node.type === "AssignmentExpression") &&
                  (this.getNodeName(node.left) === "EXPORTED_SYMBOLS") &&
                  (node.right.type === "ArrayExpression")) {
-          await this.handleExportedSymbols(node.right.elements, scope);
+          this.mozillaDriver.asyncQueue.push(async () => {
+            await this.handleExportedSymbols(node.right.elements, scope);
+          });
         }
       }
     };
   }
 
   async handleExportedSymbols(exported, scope) {
-    exported.map(n => this.getNodeName(n)).forEach(
-      name => this.mozillaDriver.findXPCOMComponents(name, scope)
-    );
+    const names = exported.map(n => this.getNodeName(n));
+    for (let i = 0; i < names.length; i++) {
+      const name = JSON.parse(names[i]);
+      await this.mozillaDriver.findXPCOMComponents(name, scope);
+    }
   }
 
   QueryInterfaceListener() {
