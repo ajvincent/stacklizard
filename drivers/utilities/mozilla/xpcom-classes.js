@@ -3,7 +3,7 @@ const path = require('path');
 const util = require('util');
 const execFile = util.promisify(require('child_process').execFile);
 
-const pathToExtractor = path.resolve(process.cwd(), "drivers/utilities/mozilla/extractListFrom.py");
+const pathToExtractor = path.resolve(__dirname, "extractListFrom.py");
 
 var failedFiles = [];
 
@@ -36,10 +36,8 @@ async function getManifestFiles(pathToRepo) {
     mozBuildFiles = files.split("\n").filter(Boolean);
   }
 
-  let fileLists = [];
-  for (let i = 0; i < mozBuildFiles.length; i++) {
-    fileLists.push(await getXPCOMManifest(mozBuildFiles[i]));
-  }
+
+  let fileLists = await Promise.all(mozBuildFiles.map(getXPCOMManifest));
   fileLists = fileLists.flat().filter(Boolean);
   fileLists.sort();
   return fileLists;
@@ -60,12 +58,13 @@ async function getClasses(filePath) {
 async function getAllClasses(pathToRepo) {
   failedFiles = [];
   const manifestFiles = await getManifestFiles(path.resolve(process.cwd(), pathToRepo));
-  const classList = [];
+  const classList = await Promise.all(manifestFiles.map(getClasses));
+  let rv = classList.flat().filter(Boolean);
 
-  for (let i = 0; i < manifestFiles.length; i++) {
-    classList.push(await getClasses(manifestFiles[i]));
-  }
-  return classList.flat().filter(Boolean);
+  failedFiles.sort();
+  console.warn(`Failures: ${failedFiles.length}\n${JSON.stringify(failedFiles, null, 2)}`);
+  console.log("gathered classes: " + rv.length);
+  return rv;
 }
 
 module.exports = getAllClasses;
@@ -73,8 +72,5 @@ module.exports = getAllClasses;
 if (require.main === module) {
   (async function() {
     console.log(JSON.stringify(await getAllClasses(process.argv[2]), null, 2));
-
-    failedFiles.sort();
-    console.warn(`Failures: ${failedFiles.length}\n${JSON.stringify(failedFiles, null, 2)}`);
   })();
 }
