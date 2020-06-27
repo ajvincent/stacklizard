@@ -299,6 +299,12 @@ JSDriver.prototype = {
       script => this.appendJSFile(script)
     ));
 
+    if (Array.isArray(config.debugByLine)) {
+      config.debugByLine.forEach(entry => {
+        this.debugByLine(entry.path, entry.line);
+      });
+    }
+
     this.parseSources();
 
     if (Array.isArray(config.ignore)) {
