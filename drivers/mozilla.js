@@ -6,6 +6,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const JSDriver = require("./javascript");
 const XPCOMClassesData = require("./utilities/mozilla/xpcom-classes");
+const getLiteralLocations = require("./utilities/mozilla/getLiteralLocations");
 
 class MozillaDriver {
   constructor(rootDir, options = {}) {
@@ -35,11 +36,17 @@ class MozillaDriver {
     this.sourceToDriver = new Map(/*
       pathToFile: MozillaJSDriver || MozillaHTMLDriver
     */);
+
+    this.nodeToDriver = new Map(/* node: JSDriver */);
+
+    this.ignoredNodes = new Set(/* node */);
+
+    this.asyncQueue = null;
   }
 
   async analyzeByConfiguration(config, options) {
     if (config.type === "javascript")
-      return this.analyzeByJSConfiguration(config, options);
+      return await this.analyzeByJSConfiguration(config, options);
     throw new Error("Unsupported configuration type");
   }
 
@@ -47,6 +54,9 @@ class MozillaDriver {
     this.startingMarkAsync = config.markAsync;
 
     this.scheduledConfigs = [config];
+    let topMarkAsync = null, topAsyncRefs = new Map();
+    this.asyncQueue = [];
+
     for (let i = 0; i < this.scheduledConfigs.length; i++) {
       const currentConfig = this.scheduledConfigs[i];
       if (!this.sourceToDriver.has(currentConfig.markAsync.path)) {
@@ -54,8 +64,25 @@ class MozillaDriver {
       }
 
       const subDriver = this.sourceToDriver.get(currentConfig.markAsync.path);
-      await subDriver.analyzeByConfiguration(currentConfig);
+      let {markAsync, asyncRefs} = await subDriver.analyzeByConfiguration(currentConfig);
+
+      while (this.asyncQueue.length)
+        await this.asyncQueue.shift()();
+
+      if (i === 0)
+        topMarkAsync = markAsync;
+      asyncRefs.forEach((value, key) => {
+        if (!topAsyncRefs.has(key))
+          topAsyncRefs.set(key, value);
+      });
+
+      Array.from(subDriver.ignoredNodes.values).forEach(value => this.ignoredNodes.add(value));
     }
+
+    return {
+      markAsync: topMarkAsync,
+      asyncRefs: topAsyncRefs
+    };
   }
 
   async buildSubDriver(config, options) {
@@ -70,16 +97,20 @@ class MozillaDriver {
     const data = await XPCOMClassesData(this.fullRoot);
 
     data.forEach(item => {
-      if (!("constructor" in item) ||
-          !("contract_ids" in item))
+      if (!Reflect.ownKeys(item).includes("constructor") ||
+          !Reflect.ownKeys(item).includes("contract_ids"))
         return;
-      if (this.ctorNameToContractIDs.has(item.constructor))
-        throw new Error("Overloaded name: " + item.constructor);
+      if (this.ctorNameToContractIDs.has(item.constructor)) {
+        console.error(this.ctorNameToContractIDs.get(item.constructor));
+        console.error(item);
+        throw new Error("duplicated constructor name");
+      }
       this.ctorNameToContractIDs.set(
         item.constructor,
         item.contract_ids
       );
     });
+    console.log("ctorName count:" + this.ctorNameToContractIDs.size);
   }
 
   async findXPCOMComponents(name, scope) {
@@ -91,6 +122,13 @@ class MozillaDriver {
     const variable = scope.set.get(name);
     const definition = variable.defs[0];
     this.xpcomComponents.add(definition.node);
+
+    let contractLocations = await Promise.all(contractIds.map(
+      contract => getLiteralLocations(this.fullRoot, contract)
+    ));
+    contractLocations = contractLocations.flat().filter(Boolean);
+    console.log(JSON.stringify(contractLocations, null, 2));
+    throw new Error("Not yet implemented");
 
     // This is where we add to this.scheduledConfigs.
     /* XXX to-do:
@@ -105,14 +143,23 @@ class MozillaDriver {
     throw new Error("Not yet implemented");
   }
 
-  /*
+  getNodeName(node) {
+    const subDriver = this.nodeToDriver.get(node);
+    return subDriver.getNodeName(node);
+  }
+
   serializeNode(node) {
-    let rv = JSDriver.prototype.serializeNode.call(this, node);
+    const subDriver = this.nodeToDriver.get(node);
+    let rv = subDriver.serializeNode(node);
     if (this.xpcomComponents.has(node))
       rv += ", XPCOM component";
     return rv;
   }
-  */
+
+  isAsyncSyntaxError(node) {
+    const subDriver = this.nodeToDriver.get(node);
+    return (subDriver.isAsyncSyntaxError(node) || this.xpcomComponents.has(node))
+  }
 }
 
 class MozillaJSDriver extends JSDriver {
@@ -128,14 +175,24 @@ class MozillaJSDriver extends JSDriver {
    * @private
    */
   appendExtraListeners(traverseListeners) {
+    traverseListeners.append(this.nodeToDriverListener());
     traverseListeners.append(this.exportedSymbolsListener());
+  }
+
+  nodeToDriverListener() {
+    const nodeToDriver = this.mozillaDriver.nodeToDriver;
+    return {
+      enter: (node) => {
+        nodeToDriver.set(node, this);
+      }
+    }
   }
 
   exportedSymbolsListener() {
     const driver = this;
     return {
-      async enter(node) {
-        let scope = driver.nodeToScope.get(node);
+      enter: (node) => {
+        let scope = this.nodeToScope.get(node);
         // JSM scope check?
         if (scope.upper)
           return;
@@ -143,21 +200,27 @@ class MozillaJSDriver extends JSDriver {
         if ((node.type === "VariableDeclarator") &&
             (driver.getNodeName(node.id) === "EXPORTED_SYMBOLS") &&
             (node.init.type === "ArrayExpression")) {
-          await driver.handleExportedSymbols(node.init.elements, scope);
+          this.mozillaDriver.asyncQueue.push(async () =>
+            await this.handleExportedSymbols(node.init.elements, scope)
+          );
         }
         else if ((node.type === "AssignmentExpression") &&
                  (driver.getNodeName(node.left) === "EXPORTED_SYMBOLS") &&
                  (node.right.type === "ArrayExpression")) {
-          await driver.handleExportedSymbols(node.right.elements, scope);
+          this.mozillaDriver.asyncQueue.push(async () => {
+            await this.handleExportedSymbols(node.right.elements, scope);
+          });
         }
       }
     };
   }
 
   async handleExportedSymbols(exported, scope) {
-    exported.map(n => JSON.parse(this.getNodeName(n))).forEach(
-      name => this.mozillaDriver.findXPCOMComponents(name, scope)
-    );
+    const names = exported.map(n => this.getNodeName(n));
+    for (let i = 0; i < names.length; i++) {
+      const name = JSON.parse(names[i]);
+      await this.mozillaDriver.findXPCOMComponents(name, scope);
+    }
   }
 
   QueryInterfaceListener() {
