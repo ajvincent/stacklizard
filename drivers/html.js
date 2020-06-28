@@ -211,6 +211,8 @@ class HTMLParseDriver extends JSDriver {
    * @returns {string|symbol} The resolved URI, or a symbol when we step outside the root.
    */
   resolveURI(baseHref, relativePath) {
+    if (baseHref.startsWith("chrome://") || relativePath.startsWith("chrome://"))
+      throw new Error("chrome URL not supported");
     let fullAbsolutePath = path.join(this.fullRoot, baseHref, relativePath);
     if (fullAbsolutePath.startsWith(this.fullRoot))
       return fullAbsolutePath.substr(this.fullRoot.length + 1);

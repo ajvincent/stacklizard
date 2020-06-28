@@ -59,9 +59,9 @@ class MozillaDriver {
 
     this.scheduleConfiguration(config);
 
+    debugger;
     while (this.asyncTasks.length) {
       const callback = this.asyncTasks.shift();
-      debugger;
       await callback();
     }
 
@@ -79,7 +79,7 @@ class MozillaDriver {
   scheduleConfiguration(config) {
     this.asyncTasks.push(async () => {
       if (!this.sourceToDriver.has(config.markAsync.path)) {
-        await this.buildSubDriver(config);
+        this.buildSubDriver(config);
       }
 
       const subDriver = this.sourceToDriver.get(config.markAsync.path);
@@ -88,7 +88,8 @@ class MozillaDriver {
       this.asyncTasks.push(async () => {
         const asyncComponents = [];
 
-        this.topStartAsync = startAsync;
+        if (!this.topStartAsync)
+          this.topStartAsync = startAsync;
         asyncRefs.forEach((value, key) => {
           if (this.topAsyncRefs.has(key))
             return;
@@ -111,7 +112,7 @@ class MozillaDriver {
     */
   }
 
-  async buildSubDriver(config) {
+  buildSubDriver(config) {
     let driver;
     if (config.type === "javascript") {
       driver = new MozillaJSDriver(this, config.root, this.options);
@@ -176,27 +177,30 @@ class MozillaDriver {
   }
 
   async buildSubsidiaryConfigsByComponents(asyncComponents, currentConfig) {
-    debugger;
+    let promises = [];
     asyncComponents.forEach((node) => {
       const name = this.getNodeName(node);
       const contractIDs = this.ctorNameToContractIDs.get(name);
       contractIDs.forEach(contractID => {
         const fileDataSet = this.contractToFiles.get(contractID);
-        fileDataSet.forEach(async fileData => {
+        fileDataSet.forEach(fileData => {
           if ("xhtmlFiles" in fileData) {
-            fileData.xhtmlFiles.forEach(async (xhtmlFileData) => {
-              await this.buildSubsidiaryConfigs(node, contractID, xhtmlFileData, fileData, currentConfig);
+            fileData.xhtmlFiles.forEach((xhtmlFileData) => {
+              promises.push(this.buildSubsidiaryConfigs(node, contractID, xhtmlFileData, fileData, currentConfig));
             });
           }
+          else if (/\.jsm?$/.test(fileData.path))
+            promises.push(this.buildSubsidiaryConfigs(node, contractID, fileData, fileData, currentConfig));
           else
-            await this.buildSubsidiaryConfigs(node, contractID, fileData, fileData, currentConfig);
+            console.log("dropping file on floor: " + fileData.fileWithLine);
         });
       });
     });
+
+    await Promise.all(promises);
   }
 
   async buildSubsidiaryConfigs(parentAsyncNode, contractID, targetFileData, jsFileData, currentConfig) {
-    debugger;
     const {awaitLocation, asyncLocation} = await contractToAwaitAsyncLocations(
       this.rootDir,
       this.options,
@@ -204,6 +208,9 @@ class MozillaDriver {
       jsFileData.line,
       contractID,
     );
+
+    if (!asyncLocation)
+      return;
 
     const outConfig = {
       type: targetFileData === jsFileData ? "javascript" : "html",
@@ -357,6 +364,20 @@ class MozillaHTMLDriver extends HTMLDriver {
   constructor(owner, rootDir, options) {
     super(rootDir, options);
     this.mozillaDriver = owner;
+  }
+
+  async appendSourcesViaHTML(...args) {
+    const pathToHTML = args[0];
+    throw new Error("maybe chrome HTML? " + pathToHTML);
+
+    /*
+    await HTMLDriver.prototype.appendSourcesViaHTML.apply(this, args);
+    */
+  }
+
+  resolveURI(baseHref, relativePath) {
+
+    return HTMLDriver.prototype.resolveURI(baseHref, relativePath);
   }
 }
 MozillaMixinDriver.install(MozillaHTMLDriver.prototype);

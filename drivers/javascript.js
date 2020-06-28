@@ -56,6 +56,8 @@ const sourceOptions = {
 
 function voidFunc() {}
 
+const superClassMap = new Map();
+
 /**
  * A stack of enter/leave listeners for estraverse.
  *
@@ -401,7 +403,7 @@ JSDriver.prototype = {
    */
   appendJSFile: async function(pathToFile) {
     if (this.sources.has(pathToFile))
-      return this.sources.get(pathToFile);
+      return;
 
     const fullPath = path.resolve(this.rootDir, pathToFile);
     const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
@@ -418,6 +420,9 @@ JSDriver.prototype = {
    * @public
    */
   appendSource: function(pathToFile, firstLineInFile, source) {
+    if (!/\.js(?:m)?$/.test(pathToFile))
+      throw new Error("source file is not JavaScript");
+
     const startSourceLine = this.parsingBuffer.length + 1;
     const addedLines = source.split("\n");
     Array.prototype.push.apply(this.parsingBuffer, addedLines);
@@ -471,7 +476,14 @@ JSDriver.prototype = {
    * @public
    */
   parseSources: function() {
-    const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
+    let ast;
+    try {
+      ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
+    }
+    catch (ex) {
+      debugger;
+      throw ex;
+    }
     this.parsingBuffer = [];
     const listeners = new MultiplexListeners();
 
@@ -779,6 +791,10 @@ JSDriver.prototype = {
         return `${this.getNodeName}`
       case "CallExpression":
         return this.getNodeName(node.callee);
+      case "ClassDeclaration":
+        return this.getNodeName(node.id);
+      case "ConditionalExpression":
+        return this.getNodeName(node.test);
       case "Identifier":
         return node.name;
       case "Literal":
@@ -793,6 +809,11 @@ JSDriver.prototype = {
         return this.getNodeName(node.key);
       case "StringLiteral":
         return node.value;
+      case "Super":
+        if (!superClassMap.has(node)) {
+          superClassMap.set(node, superClassMap.size);
+        }
+        return `super_${superClassMap.get(node)}()`;
       case "ThisExpression":
         return "this";
       case "VariableDeclarator":

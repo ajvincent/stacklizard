@@ -20,7 +20,7 @@ async function contractToAwaitAsyncLocations(rootDir, options, path, line, contr
       throw new Error("No functions found at " + key);
 
     nodeList = nodeList.filter(n => n.type === "Literal");
-    awaitLocation.index = nodeList.find(n => JSON.parse(n.raw) === contractId);
+    awaitLocation.index = nodeList.findIndex(n => JSON.parse(n.raw) === contractId);
   }
 
   const awaitNode = driver.nodeByLineFilterIndex(
@@ -30,6 +30,8 @@ async function contractToAwaitAsyncLocations(rootDir, options, path, line, contr
     n => n.type === "Literal"
   );
   const asyncNode = driver.nodeToEnclosingFunction.get(awaitNode);
+  if (!asyncNode)
+    return {awaitLocation};
 
   const asyncLocation = {
     path,
