@@ -30,7 +30,11 @@ async function getManifestFiles(pathToRepo) {
         "-rl",
         "XPCOM_MANIFESTS",
         pathToRepo
-      ]
+      ],
+      {
+        cwd: pathToRepo,
+        shell: true,
+      }
     );
 
     mozBuildFiles = files.split("\n").filter(Boolean);
@@ -64,6 +68,7 @@ async function getAllClasses(pathToRepo) {
   failedFiles.sort();
   console.warn(`Failures: ${failedFiles.length}\n${JSON.stringify(failedFiles, null, 2)}`);
   console.log("gathered classes: " + rv.length);
+
   return rv;
 }
 
