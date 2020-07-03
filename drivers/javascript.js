@@ -478,7 +478,7 @@ JSDriver.prototype = {
    * @public
    */
   parseSources: function() {
-    let ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
+    const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
     this.parsingBuffer = [];
     const listeners = new MultiplexListeners();
 

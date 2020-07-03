@@ -1,6 +1,16 @@
 "use strict";
 const JSDriver = require("../../javascript");
 
+/**
+ * Convert a contract ID on one file's line to metadata to find the equivalent await & async nodes later.
+ * @param {*} rootDir    The root directory of the configuration.
+ * @param {*} options    Options to use in parsing.
+ * @param {*} path       The path to the file.
+ * @param {*} line       The line number of the contract ID.
+ * @param {*} contractId The actual contract ID.
+ *
+ * @returns {Object} containing awaitLocation, asyncLocation.
+ */
 async function contractToAwaitAsyncLocations(rootDir, options, path, line, contractId) {
   const driver = new JSDriver(rootDir, options);
   await driver.appendJSFile(path);

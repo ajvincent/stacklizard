@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+
+# This is a quick & dirty attempt to convert lists written in Python to JSON-serialized lists.
+# It is quite buggy, so be not surprised when it misses a lot.
+
+# arguments:
+# pathToFile:    The Python file to read.
+# variableName:  The variable to extract from the Python file.
+# extractMethod: The preferred method of parsing the Python file.
+
 import json
 import sys
 import ast

@@ -1,4 +1,34 @@
 "use strict";
+/**
+ * @fileoverview
+ *
+ * The MozillaDriver is really a coordinator for several independent JSDriver's and HTMLDriver's.
+ * It drives parsing of JavaScript code across many different scopes.  It does this through an
+ * "async tasks" list, which is basically just an array of async callback functions.
+ * Notably, the espree and estraverse tools are very synchronous, but they don't need to be
+ * async, so I adapt around them.
+ *
+ * For the Mozilla-specific features (chrome:// URL's, contract IDs, etc.), I introduce the
+ * MozillaJSDriver (for JavaScript files), and MozillaHTMLDriver (for XHTML files).  These add
+ * estraverse listeners to pick up whenever we need to do something special.
+ *
+ * These special listeners create artificial, in-memory JSON configurations similar to
+ * /sample-config-json.yaml and schedule them to run later, via
+ * MozillaDriver.prototype.scheduleConfiguration().  The analyzeByConfiguration() code drives
+ * the firing of the next scheduled task.
+ *
+ * One big reason this exists is XPCOM.  XPCOM components and services cannot be async as
+ * Mozilla constructs them.  So code like this simply can't be awaited:
+ *
+ * let um = Cc["@mozilla.org/updates/update-manager;1"].getService(
+ *   Ci.nsIUpdateManager
+ * );
+ *
+ * To at least catch where this is an issue, StackLizard will mark the contract ID's as await
+ * (even though that's meaningless in real JavaScript), and then mark the calling function as
+ * async, then continue as normal with a JSDriver to mark ancestors await and async as needed.
+ * This will be close enough for analysis to show the async/await stacks.
+ */
 
 const path = require("path");
 const JSDriver = require("./javascript");
@@ -25,6 +55,7 @@ class MozillaDriver {
     this.cwd = process.cwd();
     this.fullRoot = path.resolve(this.cwd, this.rootDir);
 
+    // new Map( chrome://packagename/content/path/to/file => absolute/path/to/local/file )
     this.chromeRegistry = null;
 
     this.ctorNameToContractIDs = new Map(/*
@@ -43,17 +74,39 @@ class MozillaDriver {
 
     this.ignoredNodes = new Set(/* node */);
 
-    this.asyncTasks = [];
+    this.asyncTasks = [/* async function() */];
 
-    this.contractToFiles = null; // new Map(contract: file[] )
+    this.contractToFiles = null; // new Map( contract: file[] )
   }
 
+  /**
+   * Perform an analysis based on a configuration.
+   *
+   * @param {JSONObject} config      The configuration for this driver.
+   * @param {Object}     adjustments Adjustments to the configuration (usually from command-line).
+   *
+   * @public
+   * @returns {Object} A dictionary object:
+   *   startAsync: The start node indicated by config.markAsync.
+   *   asyncRefs:  Map() of async nodes to corresponding await nodes and their async callers.
+   */
   async analyzeByConfiguration(config, options) {
     if (config.type === "javascript")
       return await this.analyzeByJSConfiguration(config, options);
     throw new Error("Unsupported configuration type");
   }
 
+  /**
+   * Perform an analysis based on a JavaScript configuration.
+   *
+   * @param {JSONObject} config      The configuration for this driver.
+   * @param {Object}     adjustments Adjustments to the configuration (usually from command-line).
+   *
+   * @private
+   * @returns {Object} A dictionary object:
+   *   startAsync: The start node indicated by config.markAsync.
+   *   asyncRefs:  Map() of async nodes to corresponding await nodes and their async callers.
+   */
   async analyzeByJSConfiguration(config) {
     this.startingMarkAsync = config.markAsync;
 
@@ -78,12 +131,21 @@ class MozillaDriver {
     return rv;
   }
 
+  /**
+   * Schedule processing of a XHTML or JS file by a configuration (real or artificial).
+   *
+   * @param {Object} config  The configuration.
+   *
+   * @private
+   */
   scheduleConfiguration(config) {
     this.asyncTasks.push(async () => {
+      // Start processing.
       if (!this.sourceToDriver.has(config.markAsync.path)) {
         this.buildSubDriver(config);
       }
 
+      // Parse the files specified by the configuration.
       let driverPath = config.markAsync.path;
       if (config.type === "html")
         driverPath = config.pathToHTML;
@@ -91,6 +153,7 @@ class MozillaDriver {
       let {startAsync, asyncRefs} = await subDriver.analyzeByConfiguration(config);
 
       this.asyncTasks.push(async () => {
+        // Import our data from the subsidiary driver.
         const asyncComponents = [];
 
         if (!this.topStartAsync)
@@ -108,6 +171,7 @@ class MozillaDriver {
 
         Array.from(subDriver.ignoredNodes.values).forEach(value => this.ignoredNodes.add(value));
 
+        // Schedule future configurations based on XPCOM components we marked async.
         await this.buildSubsidiaryConfigsByComponents(asyncComponents, config);
       });
     });
@@ -117,6 +181,14 @@ class MozillaDriver {
     */
   }
 
+  /**
+   * Build a JSDriver for parsing Mozilla-specific JavaScripts.
+   *
+   * @param {Object} config
+   *
+   * @private
+   * @returns {JSDriver} The driver.
+   */
   buildSubDriver(config) {
     let driver;
     if (config.type === "javascript") {
@@ -129,6 +201,10 @@ class MozillaDriver {
     }
   }
 
+  /**
+   * Gather the mapping of chrome:// URL's to local filesystem files.
+   * @private
+   */
   async buildChromeRegistry() {
     this.chromeRegistry = await parseJarManifests(this.fullRoot);
     console.log("built chrome registry: " + this.chromeRegistry.size);
@@ -136,6 +212,11 @@ class MozillaDriver {
       throw new Error("abort");
   }
 
+  /**
+   * Map constructor names to contract ID's.
+   *
+   * @private
+   */
   async gatherXPCOMClassData() {
     const data = await XPCOMClassesData(this.fullRoot);
 
@@ -165,19 +246,30 @@ class MozillaDriver {
       if (!Reflect.ownKeys(item).includes("constructor") ||
           !Reflect.ownKeys(item).includes("contract_ids"))
         return;
+
       if (this.ctorNameToContractIDs.has(item.constructor)) {
         console.error(this.ctorNameToContractIDs.get(item.constructor));
         console.error(item);
         throw new Error("duplicated constructor name");
       }
+
       this.ctorNameToContractIDs.set(
         item.constructor,
         item.contract_ids
       );
     });
+
     console.log("count of constructors mapped to contract ID's: " + this.ctorNameToContractIDs.size);
   }
 
+  /**
+   * Find XPCOM components in a given scope and record their constructor nodes.
+   *
+   * @param {string} name The constructor's name.
+   * @param {Object} scope An estraverse global scope object.
+   *
+   * @protected
+   */
   findXPCOMComponents(name, scope) {
     const contractIds = this.ctorNameToContractIDs.get(name);
     if (!contractIds) {
@@ -189,13 +281,22 @@ class MozillaDriver {
     this.xpcomComponents.add(definition.node);
   }
 
+  /**
+   * Clone a configuration and adjust it for additional JavaScript files to parse in new scopes.
+   * @param {Node[]} asyncComponents The components we need to mark async.
+   * @param {Object} currentConfig   The current configuration.
+   *
+   * @private
+   */
   async buildSubsidiaryConfigsByComponents(asyncComponents, currentConfig) {
     let promises = [];
     asyncComponents.forEach((node) => {
       const name = this.getNodeName(node);
       const contractIDs = this.ctorNameToContractIDs.get(name);
+
       contractIDs.forEach(contractID => {
         const fileDataSet = this.contractToFiles.get(contractID);
+
         fileDataSet.forEach(fileData => {
           if ("xhtmlFiles" in fileData) {
             fileData.xhtmlFiles.forEach((xhtmlFileData) => {
@@ -206,6 +307,7 @@ class MozillaDriver {
             promises.push(this.buildSubsidiaryConfigs(node, contractID, fileData, fileData, currentConfig));
           else
             console.log("dropping file on floor: " + fileData.fileWithLine);
+
         });
       });
     });
@@ -213,6 +315,15 @@ class MozillaDriver {
     await Promise.all(promises);
   }
 
+  /**
+   * Clone a configuration and adjust it for additional JavaScript files to parse in new scopes.
+   *
+   * @param {Node}   parentAsyncNode The component constructor's AST node.
+   * @param {string} contractID      The XPCOM contract ID of the component.
+   * @param {Object} targetFileData  The JS or XHTML file needing parsing.
+   * @param {Object} jsFileData      The location of the node to mark async in the target.
+   * @param {Object} currentConfig   The current configuration.
+   */
   async buildSubsidiaryConfigs(parentAsyncNode, contractID, targetFileData, jsFileData, currentConfig) {
     const {awaitLocation, asyncLocation} = await contractToAwaitAsyncLocations(
       this.rootDir,
@@ -231,6 +342,7 @@ class MozillaDriver {
       options: currentConfig.options,
       ignore: currentConfig.ignore,
 
+      // technically not needed yet, but it doesn't hurt
       markAwait: awaitLocation,
 
       markAsync: {
@@ -248,6 +360,7 @@ class MozillaDriver {
     }
 
     this.scheduleConfiguration(outConfig);
+
     // need to tie the awaitNode and asyncNode to their parent async node
     this.asyncTasks.push(() => {
       if (!this.topAsyncRefs.has(parentAsyncNode)) {
@@ -286,6 +399,8 @@ class MozillaDriver {
     throw new Error("Not yet implemented");
   }
 
+  // utilities for MozillaJSDriver, MozillaHTMLDriver.
+
   getNodeName(node) {
     const subDriver = this.nodeToDriver.get(node);
     return subDriver.getNodeName(node);
@@ -307,6 +422,9 @@ class MozillaDriver {
   }
 }
 
+/**
+ * Prototype methods for MozillaJSDriver, MozillaHTMLDriver.
+ */
 const MozillaMixinDriver = {
   install(thisObj) {
     Reflect.ownKeys(this).forEach(key => {
@@ -327,6 +445,11 @@ const MozillaMixinDriver = {
     traverseListeners.append(this.exportedSymbolsListener());
   },
 
+  /**
+   * Build an estraverse listener for mapping nodes to their subsidiary driver.
+   *
+   * @private
+   */
   nodeToDriverListener() {
     const nodeToDriver = this.mozillaDriver.nodeToDriver;
     return {
@@ -336,6 +459,11 @@ const MozillaMixinDriver = {
     }
   },
 
+  /**
+   * Build an estraverse listener to handle the special EXPORTED_SYMBOLS value in .jsm files.
+   *
+   * @private
+   */
   exportedSymbolsListener() {
     return {
       enter: (node) => {
@@ -362,6 +490,14 @@ const MozillaMixinDriver = {
     };
   },
 
+  /**
+   * Extract components from the EXPORTED_SYMBOLS value of a scope.
+   *
+   * @param {Node[]} exported The exported names as AST nodes.
+   * @param {Object} scope    The estraverse scope.
+   *
+   * @private
+   */
   handleExportedSymbols(exported, scope) {
     const names = exported.map(n => this.getNodeName(n));
     for (let i = 0; i < names.length; i++) {
@@ -385,6 +521,16 @@ class MozillaHTMLDriver extends HTMLDriver {
     this.mozillaDriver = owner;
   }
 
+  /**
+   * Convert chrome:// URL's to absolute file paths.
+   *
+   * @param {string} baseHref     The base href.
+   * @param {string} relativePath The relative URL to resolve.
+   *
+   * @private
+   * @returns {string} The corrected location to load.
+   *
+   */
   resolveURI(baseHref, relativePath) {
     if (relativePath.startsWith("chrome://")) {
       if (!this.mozillaDriver.chromeRegistry.has(relativePath)) {
