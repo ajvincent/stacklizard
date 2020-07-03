@@ -175,7 +175,7 @@ class MozillaDriver {
         item.contract_ids
       );
     });
-    console.log("ctorName count:" + this.ctorNameToContractIDs.size);
+    console.log("count of constructors mapped to contract ID's: " + this.ctorNameToContractIDs.size);
   }
 
   findXPCOMComponents(name, scope) {
@@ -256,7 +256,8 @@ class MozillaDriver {
 
       const subDriver = this.sourceToDriver.get(targetFileData.path);
       if (!subDriver) {
-        console.log(Array.from(this.sourceToDriver.entries()).join("\n"));
+        console.error("Couldn't find subDriver: " + targetFileData.path);
+        console.error(Array.from(this.sourceToDriver.entries()).join("\n"));
         throw new Error("Couldn't find subDriver: " + targetFileData.path);
       }
 

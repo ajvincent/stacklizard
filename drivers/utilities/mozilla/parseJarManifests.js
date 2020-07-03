@@ -222,8 +222,10 @@ toolkit.jar:
 
 
 async function parseJarManifests(pathToRepo) {
+  console.log("enter: parsing JAR manifests for chrome:// URL's");
   RegistryDriver.chromeToLocalFiles.clear();
   await RegistryDriver.getAllManifests(pathToRepo);
+  console.log("leave: parsing JAR manifests for chrome:// URL's");
   return RegistryDriver.chromeToLocalFiles;
 }
 

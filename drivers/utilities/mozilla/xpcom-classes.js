@@ -60,6 +60,7 @@ async function getClasses(filePath) {
 }
 
 async function getAllClasses(pathToRepo) {
+  console.log("enter: Extracting XPCOM classes");
   failedFiles = [];
   const manifestFiles = await getManifestFiles(path.resolve(process.cwd(), pathToRepo));
   const classList = await Promise.all(manifestFiles.map(getClasses));
@@ -69,6 +70,7 @@ async function getAllClasses(pathToRepo) {
   console.warn(`Failures: ${failedFiles.length}\n${JSON.stringify(failedFiles, null, 2)}`);
   console.log("gathered classes: " + rv.length);
 
+  console.log("leave: Extracting XPCOM classes");
   return rv;
 }
 

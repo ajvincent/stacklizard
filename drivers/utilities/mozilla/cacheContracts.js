@@ -99,10 +99,6 @@ async function cacheContracts(pathToRepo, classData) {
         jsFiles.get(leaf).push(data);
       }
     }
-
-    let logMsg = row.map(d => d.fileWithLine).join("\n");
-    if (logMsg)
-      console.log(logMsg);
   });
 
   const jsFileKeys = Array.from(jsFiles.keys());
@@ -140,17 +136,6 @@ async function cacheContracts(pathToRepo, classData) {
       });
     }
   });
-
-  /*
-  {
-    const logData = {};
-    results.forEach((value, key) => {
-      logData[key] = value;
-    });
-    console.log(JSON.stringify(logData, null, 2));
-    throw new Error("abort");
-  }
-  */
 
   return results;
 }
