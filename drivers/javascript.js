@@ -420,8 +420,10 @@ JSDriver.prototype = {
    * @public
    */
   appendSource: function(pathToFile, firstLineInFile, source) {
-    if (!/\.js(?:m)?$/.test(pathToFile))
-      throw new Error("source file is not JavaScript");
+    if (!/\.m?jsm?$/.test(pathToFile) &&
+        !/\.x?html?(:on\w+)?$/.test(pathToFile) &&
+        !pathToFile.startsWith("("))
+      throw new Error("source file is not JavaScript: " + pathToFile);
 
     const startSourceLine = this.parsingBuffer.length + 1;
     const addedLines = source.split("\n");
@@ -476,14 +478,7 @@ JSDriver.prototype = {
    * @public
    */
   parseSources: function() {
-    let ast;
-    try {
-      ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
-    }
-    catch (ex) {
-      debugger;
-      throw ex;
-    }
+    let ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
     this.parsingBuffer = [];
     const listeners = new MultiplexListeners();
 

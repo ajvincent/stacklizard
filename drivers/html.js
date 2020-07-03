@@ -213,7 +213,7 @@ class HTMLParseDriver extends JSDriver {
   resolveURI(baseHref, relativePath) {
     if (baseHref.startsWith("chrome://") || relativePath.startsWith("chrome://"))
       throw new Error("chrome URL not supported");
-    let fullAbsolutePath = path.join(this.fullRoot, baseHref, relativePath);
+    let fullAbsolutePath = path.resolve(this.fullRoot, baseHref, relativePath);
     if (fullAbsolutePath.startsWith(this.fullRoot))
       return fullAbsolutePath.substr(this.fullRoot.length + 1);
     return outside;

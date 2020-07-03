@@ -6,6 +6,7 @@ const HTMLDriver = require("./html");
 const XPCOMClassesData = require("./utilities/mozilla/xpcom-classes");
 const cacheContracts = require("./utilities/mozilla/cacheContracts");
 const contractToAwaitAsyncLocations = require("./utilities/mozilla/contractToAwaitAsyncLocations");
+const parseJarManifests = require("./utilities/mozilla/parseJarManifests");
 
 class MozillaDriver {
   constructor(rootDir, options = {}) {
@@ -23,6 +24,8 @@ class MozillaDriver {
 
     this.cwd = process.cwd();
     this.fullRoot = path.resolve(this.cwd, this.rootDir);
+
+    this.chromeRegistry = null;
 
     this.ctorNameToContractIDs = new Map(/*
       constructor name: [ contract id, ... ]
@@ -59,7 +62,6 @@ class MozillaDriver {
 
     this.scheduleConfiguration(config);
 
-    debugger;
     while (this.asyncTasks.length) {
       const callback = this.asyncTasks.shift();
       await callback();
@@ -82,7 +84,10 @@ class MozillaDriver {
         this.buildSubDriver(config);
       }
 
-      const subDriver = this.sourceToDriver.get(config.markAsync.path);
+      let driverPath = config.markAsync.path;
+      if (config.type === "html")
+        driverPath = config.pathToHTML;
+      const subDriver = this.sourceToDriver.get(driverPath);
       let {startAsync, asyncRefs} = await subDriver.analyzeByConfiguration(config);
 
       this.asyncTasks.push(async () => {
@@ -116,11 +121,19 @@ class MozillaDriver {
     let driver;
     if (config.type === "javascript") {
       driver = new MozillaJSDriver(this, config.root, this.options);
+      this.sourceToDriver.set(config.markAsync.path, driver);
     }
     else if (config.type === "html") {
       driver = new MozillaHTMLDriver(this, config.root, this.options);
+      this.sourceToDriver.set(config.pathToHTML, driver);
     }
-    this.sourceToDriver.set(config.markAsync.path, driver);
+  }
+
+  async buildChromeRegistry() {
+    this.chromeRegistry = await parseJarManifests(this.fullRoot);
+    console.log("built chrome registry: " + this.chromeRegistry.size);
+    if (!this.chromeRegistry.size)
+      throw new Error("abort");
   }
 
   async gatherXPCOMClassData() {
@@ -242,6 +255,11 @@ class MozillaDriver {
       }
 
       const subDriver = this.sourceToDriver.get(targetFileData.path);
+      if (!subDriver) {
+        console.log(Array.from(this.sourceToDriver.entries()).join("\n"));
+        throw new Error("Couldn't find subDriver: " + targetFileData.path);
+      }
+
       const asyncNode = subDriver.functionNodeFromLine(
         asyncLocation.path,
         asyncLocation.line,
@@ -366,18 +384,15 @@ class MozillaHTMLDriver extends HTMLDriver {
     this.mozillaDriver = owner;
   }
 
-  async appendSourcesViaHTML(...args) {
-    const pathToHTML = args[0];
-    throw new Error("maybe chrome HTML? " + pathToHTML);
-
-    /*
-    await HTMLDriver.prototype.appendSourcesViaHTML.apply(this, args);
-    */
-  }
-
   resolveURI(baseHref, relativePath) {
-
-    return HTMLDriver.prototype.resolveURI(baseHref, relativePath);
+    if (relativePath.startsWith("chrome://")) {
+      if (!this.mozillaDriver.chromeRegistry.has(relativePath)) {
+        throw new Error("uh oh");
+      }
+      relativePath = this.mozillaDriver.chromeRegistry.get(relativePath);
+      baseHref = "";
+    }
+    return HTMLDriver.prototype.resolveURI.apply(this, [baseHref, relativePath]);
   }
 }
 MozillaMixinDriver.install(MozillaHTMLDriver.prototype);
