@@ -211,6 +211,9 @@ const subcommandMap = new Map(/* subcommand: execute */);
       config.driver.options || {}
     );
 
+    await parseDriver.buildChromeRegistry();
+    await parseDriver.gatherXPCOMClassData();
+
     const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver, {
       newIgnore: args.ignore
     });
