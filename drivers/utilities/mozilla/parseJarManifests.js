@@ -53,19 +53,39 @@ const RegistryDriver = {
    */
   async parseAllManifests(pathToRepo) {
     // # this will get the list of jar files prepended by "./"
-    let { stdout: jarManifestList } = await execFile(
-      "find",
-      [
-        "-type",
-        "f",
-        "-name",
-        "jar.mn",
-      ],
-      {
-        cwd: pathToRepo,
-        shell: true,
-      }
-    );
+    let execOutput;
+    let jarManifestList;
+    if (process.platform === "darwin") {
+      execOutput = await execFile(
+        "find",
+        [
+          ".",
+          "-name",
+          "jar.mn",
+        ],
+        {
+          cwd: pathToRepo,
+          shell: true,
+        }
+      );
+    }
+    else {
+      execOutput = await execFile(
+        "find",
+        [
+          "-type",
+          "f",
+          "-name",
+          "jar.mn",
+        ],
+        {
+          cwd: pathToRepo,
+          shell: true,
+        }
+      );
+    }
+    jarManifestList = execOutput.stdout;
+    execOutput = null;
 
     const jarManifests = jarManifestList.split("\n");
     jarManifests.pop();

@@ -240,7 +240,9 @@ class MozillaDriver {
       ]
     )
     */
+    console.timeLog("mozilla", "Gathering contract locations");
     this.contractToFiles = await cacheContracts(this.fullRoot, data);
+    console.timeLog("mozilla", "Finished contract locations");
 
     data.forEach(item => {
       if (!Reflect.ownKeys(item).includes("constructor") ||

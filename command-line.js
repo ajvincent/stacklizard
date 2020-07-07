@@ -211,12 +211,16 @@ const subcommandMap = new Map(/* subcommand: execute */);
       config.driver.options || {}
     );
 
+    console.time("mozilla");
     await parseDriver.buildChromeRegistry();
+    console.timeLog("mozilla", "buildChromeRegistry");
     await parseDriver.gatherXPCOMClassData();
+    console.timeLog("mozilla", "gatherXPCOMClassData");
 
     const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver, {
       newIgnore: args.ignore
     });
+    console.timeLog("mozilla", "analyzeByConfiguration");
 
     const serializer = StackLizard.getSerializer(
       config.serializer.type,
@@ -226,6 +230,8 @@ const subcommandMap = new Map(/* subcommand: execute */);
       config.serializer.options || {}
     );
     console.log(serializer.serialize());
+    console.timeLog("mozilla", "serialize");
+    console.timeEnd("mozilla");
 
     await maybeSaveConfig(args, parseDriver, serializer, startAsync);
   });
