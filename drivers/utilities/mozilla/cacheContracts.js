@@ -161,6 +161,8 @@ const DarwinTools = {
 function extractLocations(fileWithLine) {
   if (!fileWithLine)
     return null;
+  if (fileWithLine.startsWith("./"))
+    fileWithLine = fileWithLine.substr(2);
 
   const matches = grepRE.exec(fileWithLine);
   if (!matches) {
