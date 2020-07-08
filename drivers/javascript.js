@@ -56,6 +56,8 @@ const sourceOptions = {
 
 function voidFunc() {}
 
+const superClassMap = new Map();
+
 /**
  * A stack of enter/leave listeners for estraverse.
  *
@@ -299,6 +301,12 @@ JSDriver.prototype = {
       script => this.appendJSFile(script)
     ));
 
+    if (Array.isArray(config.debugByLine)) {
+      config.debugByLine.forEach(entry => {
+        this.debugByLine(entry.path, entry.line);
+      });
+    }
+
     this.parseSources();
 
     if (Array.isArray(config.ignore)) {
@@ -395,7 +403,7 @@ JSDriver.prototype = {
    */
   appendJSFile: async function(pathToFile) {
     if (this.sources.has(pathToFile))
-      return this.sources.get(pathToFile);
+      return;
 
     const fullPath = path.resolve(this.rootDir, pathToFile);
     const source = await fs.readFile(fullPath, { encoding: "UTF-8" } );
@@ -412,6 +420,11 @@ JSDriver.prototype = {
    * @public
    */
   appendSource: function(pathToFile, firstLineInFile, source) {
+    if (!/\.m?jsm?$/.test(pathToFile) &&
+        !/\.x?html?(:on\w+)?$/.test(pathToFile) &&
+        !pathToFile.startsWith("("))
+      throw new Error("source file is not JavaScript: " + pathToFile);
+
     const startSourceLine = this.parsingBuffer.length + 1;
     const addedLines = source.split("\n");
     Array.prototype.push.apply(this.parsingBuffer, addedLines);
@@ -425,7 +438,7 @@ JSDriver.prototype = {
   },
 
   /**
-   * Get a stringified representation of the code we will parse.comment
+   * Get a stringified representation of the code we will parse.
    *
    * @public
    * @returns {string} The code, annotated by original source file and line number.
@@ -466,6 +479,7 @@ JSDriver.prototype = {
    */
   parseSources: function() {
     const ast = espree.parse(this.parsingBuffer.join("\n"), sourceOptions);
+    this.parsingBuffer = [];
     const listeners = new MultiplexListeners();
 
     // First pass, build up references to files, line numbers, and JS scopes.
@@ -515,6 +529,8 @@ JSDriver.prototype = {
 
     listeners.append(this.functionStackListener());
     listeners.append(this.awaitExpressionListener());
+
+    this.appendExtraListeners(listeners);
 
     estraverse.traverse(ast, listeners);
   },
@@ -674,6 +690,16 @@ JSDriver.prototype = {
   },
 
   /**
+   * Add extra listeners for special metadata.
+   *
+   * @param {MultiplexListeners} traverseListeners
+   * @protected
+   */
+  appendExtraListeners: function(traverseListeners) {
+    voidFunc(traverseListeners);
+  },
+
+  /**
    * Manage references to other nodes.
    * @param {*} node
    *
@@ -760,6 +786,10 @@ JSDriver.prototype = {
         return `${this.getNodeName}`
       case "CallExpression":
         return this.getNodeName(node.callee);
+      case "ClassDeclaration":
+        return this.getNodeName(node.id);
+      case "ConditionalExpression":
+        return this.getNodeName(node.test);
       case "Identifier":
         return node.name;
       case "Literal":
@@ -772,6 +802,13 @@ JSDriver.prototype = {
         return `{ ${node.properties.map(n => this.getNodeName(n))} }`;
       case "Property":
         return this.getNodeName(node.key);
+      case "StringLiteral":
+        return node.value;
+      case "Super":
+        if (!superClassMap.has(node)) {
+          superClassMap.set(node, superClassMap.size);
+        }
+        return `super_${superClassMap.get(node)}()`;
       case "ThisExpression":
         return "this";
       case "VariableDeclarator":

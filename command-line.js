@@ -70,6 +70,14 @@ const subcommandMap = new Map(/* subcommand: execute */);
     }
   );
 
+  standalone.addArgument(
+    "--save-output",
+    {
+      action: "store",
+      help: "A file to save the output of this job to."
+    }
+  );
+
   subcommandMap.set("standalone", async (args) => {
     const dir = path.dirname(args.path), leaf = path.basename(args.path);
     const parseDriver = StackLizard.buildDriver("javascript", dir);
@@ -85,8 +93,7 @@ const subcommandMap = new Map(/* subcommand: execute */);
       "markdown", startAsync, asyncRefs, parseDriver, {nested: true}
     );
 
-    console.log(serializer.serialize());
-
+    await maybeSaveOutput(args, serializer);
     await maybeSaveConfig(args, parseDriver, serializer, startAsync);
   });
 }
@@ -135,6 +142,16 @@ const subcommandMap = new Map(/* subcommand: execute */);
   );
 
   htmlDriver.addArgument(
+    "--fnIndex",
+    {
+      action: "store",
+      defaultValue: 0,
+      type: (x) => parseInt(x, 10),
+      help: "If there is more than one function on the line, the index of the function.",
+    }
+  );
+
+  htmlDriver.addArgument(
     "--save-config",
     {
       action: "store",
@@ -143,12 +160,10 @@ const subcommandMap = new Map(/* subcommand: execute */);
   );
 
   htmlDriver.addArgument(
-    "--fnIndex",
+    "--save-output",
     {
       action: "store",
-      defaultValue: 0,
-      type: (x) => parseInt(x, 10),
-      help: "If there is more than one function on the line, the index of the function.",
+      help: "A file to save the output of this job to."
     }
   );
 
@@ -167,9 +182,81 @@ const subcommandMap = new Map(/* subcommand: execute */);
       "markdown", startAsync, asyncRefs, parseDriver, {nested: true}
     );
 
-    console.log(serializer.serialize());
+    await maybeSaveOutput(args, serializer);
+    await maybeSaveConfig(args, parseDriver, serializer, startAsync);
+  });
+}
+
+// mozilla
+{
+  const mozilla = subparsers.addParser(
+    "mozilla",
+    {
+      title: "Script analysis starting in a mozilla source directory",
+      help:  "Script analysis starting in a mozilla source directory",
+      addHelp: true,
+    }
+  );
+
+  mozilla.addArgument(
+    "json",
+    {
+      action: "store",
+      help: "The location of the configuration file."
+    }
+  );
+
+  mozilla.addArgument(
+    "--save-config",
+    {
+      action: "store",
+      help: "A file to save the configuration of this job to."
+    }
+  );
+
+  mozilla.addArgument(
+    "--save-output",
+    {
+      action: "store",
+      help: "A file to save the output of this job to."
+    }
+  );
+
+  subcommandMap.set("mozilla", async (args) => {
+    const pathToConfig = path.resolve(process.cwd(), args.json);
+    const config = JSON.parse(await fs.readFile(pathToConfig, { encoding: "utf-8"}));
+
+    const rootDir = path.resolve(process.cwd(), config.driver.root);
+    const parseDriver = StackLizard.buildDriver(
+      "mozilla",
+      rootDir,
+      config.driver.options || {}
+    );
+
+    console.time("mozilla");
+    await parseDriver.buildChromeRegistry();
+    console.timeLog("mozilla", "buildChromeRegistry");
+    await parseDriver.gatherXPCOMClassData();
+    console.timeLog("mozilla", "gatherXPCOMClassData");
+
+    const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver, {
+      newIgnore: args.ignore
+    });
+    console.timeLog("mozilla", "analyzeByConfiguration");
+
+    const serializer = StackLizard.getSerializer(
+      config.serializer.type,
+      startAsync,
+      asyncRefs,
+      parseDriver,
+      config.serializer.options || {}
+    );
+    await maybeSaveOutput(args, serializer);
+    console.timeLog("mozilla", "serialize");
+    console.timeEnd("mozilla");
 
     await maybeSaveConfig(args, parseDriver, serializer, startAsync);
+
   });
 }
 
@@ -220,6 +307,14 @@ const subcommandMap = new Map(/* subcommand: execute */);
     }
   );
 
+  configuration.addArgument(
+    "--save-output",
+    {
+      action: "store",
+      help: "A file to save the output of this job to."
+    }
+  );
+
   subcommandMap.set("configuration", async (args) => {
     const pathToConfig = path.resolve(process.cwd(), args.json);
     const config = JSON.parse(await fs.readFile(pathToConfig, { encoding: "utf-8"}));
@@ -242,10 +337,21 @@ const subcommandMap = new Map(/* subcommand: execute */);
       parseDriver,
       config.serializer.options || {}
     );
-    console.log(serializer.serialize());
+    await maybeSaveOutput(args, serializer);
 
     await maybeSaveConfig(args, parseDriver, serializer, startAsync);
   });
+}
+
+async function maybeSaveOutput(args, serializer) {
+  const output = serializer.serialize();
+  if (!args.save_output) {
+    console.log(output);
+    return;
+  }
+
+  const pathToConfig = path.resolve(process.cwd(), args.save_output);
+  await fs.writeFile(pathToConfig, output, { encoding: "utf-8" } );
 }
 
 async function maybeSaveConfig(args, parseDriver, serializer, startAsync) {
