@@ -354,6 +354,10 @@ class MozillaDriver {
       }
     };
 
+    if (Array.isArray(currentConfig.debugByLine)) {
+      outConfig.debugByLine = currentConfig.debugByLine.slice(0);
+    }
+
     if (outConfig.type === "javascript") {
       outConfig.scripts = [ targetFileData.path ];
     }
