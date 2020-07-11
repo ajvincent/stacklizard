@@ -117,6 +117,7 @@ describe(
       "prototype-define",
       "prototype-assign",
       "class-constructor",
+      "class-no-constructor",
     ].forEach(
       fixture => it(fixture, async () => fixtureTest(fixture))
     );

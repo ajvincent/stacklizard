@@ -815,7 +815,9 @@ JSDriver.prototype = {
     const definition = variable.defs[0];
     let rv = definition.node;
     if (rv.type === "ClassDeclaration") {
-      return this.getConstructorFunction(rv.body);
+      const ctor = rv.body.body.find(n => n.kind === constructor);
+      if (ctor)
+        return ctor;
     }
     return rv;
   },
