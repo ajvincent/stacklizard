@@ -252,7 +252,6 @@ const subcommandMap = new Map(/* subcommand: execute */);
       config.serializer.options || {}
     );
     await maybeSaveOutput(args, serializer);
-    console.timeLog("mozilla", "serialize");
     console.timeEnd("mozilla");
 
     await maybeSaveConfig(args, parseDriver, serializer, startAsync);

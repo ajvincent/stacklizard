@@ -1,0 +1,14 @@
+{
+  "debugByLine": [
+  ],
+
+  "scripts": [
+    "fixture.js"
+  ],
+
+  "markAsync": {
+    "path": "fixture.js",
+    "line": 21,
+    "functionIndex": 0
+  }
+}

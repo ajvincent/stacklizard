@@ -235,14 +235,6 @@ function JSDriver(rootDir, options = {}) {
   */);
 
   /**
-   * A mapping of nodes to the object that owns them: A.b = function() { return this.c; };
-   * @private
-   */
-  this.valueNodeToThisNode = new WeakMap(/*
-    value node: A node that owns the method.
-  */);
-
-  /**
    * A mapping of nodes to a matching constructor function.
    * @private
    */
@@ -510,10 +502,23 @@ JSDriver.prototype = {
             this.accessorNodes.add(node.value);
           }
         }
+
+        else if (node.type === "MethodDefinition") {
+          if (node.kind === "constructor") {
+            this.constructorFunctions.add(node.value);
+          }
+          else {
+            this.valueNodeToKeyNode.set(node.value, node.key);
+            if (node.kind !== "method") {
+              this.accessorNodes.add(node.value);
+            }
+          }
+        }
       }
     });
 
     listeners.append(this.prototypeListener());
+    listeners.append(this.classListener());
 
     listeners.append({
       enter: (node, parent) => {
@@ -668,10 +673,11 @@ JSDriver.prototype = {
     this.prototypeStack = [];
     return {
       enter: (node) => {
-
         // A.prototype = { b: function() { ... } };
         if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
           this.prototypeStack.unshift(node.left.object);
+        else if (node.type === "ClassBody")
+          this.prototypeStack.unshift(node);
 
         // A.prototype.b = function() { ... };
         else if (isPrototypeAssignMethod(node)) {
@@ -685,8 +691,47 @@ JSDriver.prototype = {
       leave: (node) => {
         if ((node.type === "AssignmentExpression") && isPrototypeMember(node.left))
           this.prototypeStack.shift();
+        else if (node.type === "ClassBody")
+          this.prototypeStack.shift();
       }
     };
+  },
+
+  /**
+   * Manage JavaScript classes.
+   *
+   * @private
+   */
+  classListener: function() {
+    /* Classes have special rules to them.  The constructor can appear anywhere
+    among the MethodDefinitions.  The prototype is the ClassBody (I think).  The
+    id property of the Class node defines the constructor name we have to use.
+    */
+    const classStack = [/* { classNode: node, constructorNode: node } */];
+    return {
+      enter: (node) => {
+        if (node.type === "ClassDeclaration") {
+          const nameNode = node.id;
+          const valueNode = node.body;
+          this.valueNodeToKeyNode.set(valueNode, nameNode);
+
+          let data = { classNode: node };
+          const ctorNode = node.body.body.find(n => n.kind === "constructor");
+          data.constructorNode = ctorNode ? ctorNode.value : node;
+          this.valueNodeToKeyNode.set(data.constructorNode, nameNode);
+          classStack.unshift(data);
+        }
+        else if ((node.type === "MethodDefinition") && (node.kind !== "constructor")) {
+          this.nodeToConstructorFunction.set(node, classStack[0].constructorNode);
+        }
+      },
+
+      leave: (node) => {
+        if (node.type === "ClassDeclaration") {
+          classStack.shift();
+        }
+      }
+    }
   },
 
   /**
@@ -749,6 +794,13 @@ JSDriver.prototype = {
    * @private
    */
   getConstructorFunction: function(refNode) {
+    if (refNode.type === "ClassBody") {
+      let rv = refNode.body.find(n => n.kind === "constructor");
+      if (rv) {
+        return rv;
+      }
+    }
+
     const name = this.getNodeName(refNode);
     let scope = this.nodeToScope.get(refNode);
 
@@ -761,7 +813,11 @@ JSDriver.prototype = {
     // see eslint-scope for help if this doesn't work right
     const variable = scope.set.get(name);
     const definition = variable.defs[0];
-    return definition.node;
+    let rv = definition.node;
+    if (rv.type === "ClassDeclaration") {
+      return this.getConstructorFunction(rv.body);
+    }
+    return rv;
   },
 
   /**

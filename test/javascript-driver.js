@@ -23,6 +23,12 @@ async function fixtureTest(fixture) {
     }
   }
 
+  if (Array.isArray(json.debugByLine)) {
+    json.debugByLine.forEach(entry => {
+      driver.debugByLine(entry.path, entry.line);
+    });
+  }
+
   driver.parseSources();
 
   if (Array.isArray(json.ignore)) {
@@ -110,6 +116,7 @@ describe(
       "object-this-getter",
       "prototype-define",
       "prototype-assign",
+      "class-constructor",
     ].forEach(
       fixture => it(fixture, async () => fixtureTest(fixture))
     );
