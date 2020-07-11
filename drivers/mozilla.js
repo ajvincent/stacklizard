@@ -120,6 +120,8 @@ class MozillaDriver {
       await callback();
     }
 
+    this.cleanAsyncDuplicates();
+
     const rv = {
       startAsync: this.topStartAsync,
       asyncRefs: this.topAsyncRefs
@@ -405,6 +407,13 @@ class MozillaDriver {
     throw new Error("Not yet implemented");
   }
 
+  cleanAsyncDuplicates() {
+    this.topAsyncRefs.forEach((value, key) => {
+      value.sort(compareAwaitAsync);
+      this.topAsyncRefs.set(key, value.filter(filterAwaitAsyncForDuplicates));
+    });
+  }
+
   // utilities for MozillaJSDriver, MozillaHTMLDriver.
 
   getNodeName(node) {
@@ -549,5 +558,46 @@ class MozillaHTMLDriver extends HTMLDriver {
   }
 }
 MozillaMixinDriver.install(MozillaHTMLDriver.prototype);
+
+function compareAwaitAsync(a, b) {
+  if (a.awaitNode && !b.awaitNode)
+    return -1;
+  if (b.awaitNode && !a.awaitNode)
+    return +1;
+  if (a.awaitNode) {
+    if (a.awaitNode.file < b.awaitNode.file)
+      return -1;
+    if (a.awaitNode.file > b.awaitNode.file)
+      return +1;
+    let sign = Math.sign(a.awaitNode.line - b.awaitNode.line);
+    if (sign !== 0)
+      return sign;
+  }
+
+  if (a.asyncNode && !b.asyncNode)
+    return -1;
+  if (b.asyncNode && !a.asyncNode)
+    return +1;
+  if (a.asyncNode) {
+    if (a.asyncNode.file < b.asyncNode.file)
+      return -1;
+    if (a.asyncNode.file > b.asyncNode.file)
+      return +1;
+    let sign = Math.sign(a.asyncNode.line - b.asyncNode.line);
+    if (sign !== 0)
+      return sign;
+  }
+  return 0;
+}
+
+function filterAwaitAsyncForDuplicates(item, index, array) {
+  if (index === 0)
+    return true;
+  const previousItem = array[index - 1];
+  const previousNode = previousItem.awaitNode || previousItem.asyncNode;
+  const node = item.awaitNode || item.asyncNode;
+
+  return (previousNode.file !== node.file) || (previousNode.line !== node.line);
+}
 
 module.exports = MozillaDriver;
