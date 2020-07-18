@@ -227,6 +227,13 @@ function JSDriver(rootDir, options = {}) {
   */);
 
   /**
+   * @private
+   */
+  this.nodeToParent = new WeakMap(/*
+    node: parentNode
+  */);
+
+  /**
    * A mapping of property assignments:  A = { b: c };
    * @private
    */
@@ -480,6 +487,9 @@ JSDriver.prototype = {
       const scopeManager = eslintScope.analyze(ast, {ecmaVersion: 2020});
       listeners.append(this.lineMappingListener());
       listeners.append(this.currentScopeListener(ast, scopeManager));
+      listeners.append({
+        enter: (node, parent) => this.nodeToParent.set(node, parent)
+      });
       estraverse.traverse(ast, listeners);
       listeners.clear();
     }

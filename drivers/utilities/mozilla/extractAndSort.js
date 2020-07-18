@@ -27,7 +27,7 @@ function extractLocations(fileWithLine) {
     fileWithLine,
     path: parts[1],
     line: parseInt(parts[2], 10),
-    source: fileWithLine.substr(fileWithLine.indexOf(parts[1]) + parts[1].length + 1),
+    source: fileWithLine.substr(fileWithLine.indexOf(parts[2]) + parts[2].length + 1),
   };
 }
 

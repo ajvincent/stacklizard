@@ -82,8 +82,8 @@ const DarwinTools = {
         "grep",
         args,
         {
-          cwd: "/Users/ajvincent/compiled/update-mgr/mozilla-central",
           shell: true,
+          maxBuffer: 16 * 1024 * 1024,
         }
       );
 
@@ -153,6 +153,7 @@ async function findFilesContaining(pathToRepo, fixedStrings) {
       {
         cwd: pathToRepo,
         shell: true,
+        maxBuffer: 16 * 1024 * 1024,
       }
     );
 

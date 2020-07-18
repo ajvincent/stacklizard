@@ -35,8 +35,13 @@ const JSDriver = require("./javascript");
 const HTMLDriver = require("./html");
 const XPCOMClassesData = require("./utilities/mozilla/xpcom-classes");
 const cacheContracts = require("./utilities/mozilla/cacheContracts");
-const contractToAwaitAsyncLocations = require("./utilities/mozilla/contractToAwaitAsyncLocations");
+const {
+  stringToAwaitAsyncLocations,
+  getLocationsDriver
+} = require("./utilities/mozilla/stringToAwaitAsyncLocations");
 const parseJarManifests = require("./utilities/mozilla/parseJarManifests");
+const resourceModuleReferences = require("./utilities/mozilla/resourceModuleReferences");
+const findJSMReferences = require("./utilities/mozilla/findJSMReferences");
 
 class MozillaDriver {
   constructor(rootDir, options = {}) {
@@ -77,6 +82,8 @@ class MozillaDriver {
     this.asyncTasks = [/* async function() */];
 
     this.contractToFiles = null; // new Map( contract: file[] )
+
+    this.jsmExportReferences = new Map(/* node in JSM: node[] */);
   }
 
   /**
@@ -214,6 +221,33 @@ class MozillaDriver {
       throw new Error("abort");
   }
 
+  async gatherResourceModuleReferences() {
+    this.jsmReferences = await resourceModuleReferences(this.fullRoot);
+  }
+
+  async scheduleFindJSMReferences(pathToFile, names, scope) {
+    const loaders = this.jsmReferences.get(path.basename(pathToFile));
+    console.log(names, loaders);
+
+    loaders.forEach(loader => {
+      this.asyncTasks.push(async () => {
+        if (loader.fileWithLine.endsWith(".xhtml"))
+          throw new Error("Need HTML driver for " + loader.fileWithLine);
+
+        const { awaitLocation } = await stringToAwaitAsyncLocations(
+          this.fullRoot,
+          this.options,
+          loader.path,
+          loader.line,
+          loader.literal
+        );
+
+        const driver = await getLocationsDriver(this.fullRoot, this.options, loader.path);
+        findJSMReferences(this, awaitLocation, driver, scope);
+      });
+    });
+  }
+
   /**
    * Map constructor names to contract ID's.
    *
@@ -294,24 +328,17 @@ class MozillaDriver {
    */
   async buildSubsidiaryConfigsByComponents(asyncComponents, currentConfig) {
     let promises = [];
-    asyncComponents.forEach((node) => {
-      const name = this.getNodeName(node);
+    asyncComponents.forEach((parentAsyncNode) => {
+      const name = this.getNodeName(parentAsyncNode);
       const contractIDs = this.ctorNameToContractIDs.get(name);
 
       contractIDs.forEach(contractID => {
         const fileDataSet = this.contractToFiles.get(contractID);
 
         fileDataSet.forEach(fileData => {
-          if ("xhtmlFiles" in fileData) {
-            fileData.xhtmlFiles.forEach((xhtmlFileData) => {
-              promises.push(this.buildSubsidiaryConfigs(node, contractID, xhtmlFileData, fileData, currentConfig));
-            });
-          }
-          else if (/\.jsm?$/.test(fileData.path))
-            promises.push(this.buildSubsidiaryConfigs(node, contractID, fileData, fileData, currentConfig));
-          else
-            console.log("dropping file on floor: " + fileData.fileWithLine);
-
+          promises.push(this.buildSubsidiaryComponentConfigs(
+            contractID, fileData, parentAsyncNode, currentConfig
+          ));
         });
       });
     });
@@ -319,27 +346,49 @@ class MozillaDriver {
     await Promise.all(promises);
   }
 
+  async buildSubsidiaryComponentConfigs(contractID, fileData, parentAsyncNode, currentConfig) {
+    const {awaitLocation, asyncLocation} = await stringToAwaitAsyncLocations(
+      this.rootDir,
+      this.options,
+      fileData.path,
+      fileData.line,
+      contractID
+    );
+    if (!asyncLocation)
+      return;
+
+    if ("xhtmlFiles" in fileData) {
+      fileData.xhtmlFiles.forEach((xhtmlFileData) => {
+        this.buildSubsidiaryConfiguration(
+          parentAsyncNode, awaitLocation, asyncLocation, xhtmlFileData, fileData, currentConfig
+        );
+      });
+    }
+    else if (/\.jsm?$/.test(fileData.path))
+      this.buildSubsidiaryConfiguration(
+        parentAsyncNode, awaitLocation, asyncLocation, fileData, fileData, currentConfig
+      );
+    else
+      console.log("dropping file on floor: " + fileData.fileWithLine);
+  }
+
   /**
    * Clone a configuration and adjust it for additional JavaScript files to parse in new scopes.
    *
    * @param {Node}   parentAsyncNode The component constructor's AST node.
-   * @param {string} contractID      The XPCOM contract ID of the component.
    * @param {Object} targetFileData  The JS or XHTML file needing parsing.
    * @param {Object} jsFileData      The location of the node to mark async in the target.
    * @param {Object} currentConfig   The current configuration.
    */
-  async buildSubsidiaryConfigs(parentAsyncNode, contractID, targetFileData, jsFileData, currentConfig) {
-    const {awaitLocation, asyncLocation} = await contractToAwaitAsyncLocations(
-      this.rootDir,
-      this.options,
-      jsFileData.path,
-      jsFileData.line,
-      contractID,
-    );
-
-    if (!asyncLocation)
-      return;
-
+  buildSubsidiaryConfiguration(
+    parentAsyncNode,
+    awaitLocation,
+    asyncLocation,
+    targetFileData,
+    jsFileData,
+    currentConfig
+  )
+  {
     const outConfig = {
       type: targetFileData === jsFileData ? "javascript" : "html",
       root: currentConfig.root,
@@ -519,6 +568,7 @@ const MozillaMixinDriver = {
       const name = JSON.parse(names[i]);
       this.mozillaDriver.findXPCOMComponents(name, scope);
     }
+    this.mozillaDriver.scheduleFindJSMReferences(exported[0].file, names, scope);
   },
 };
 

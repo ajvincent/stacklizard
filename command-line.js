@@ -238,6 +238,8 @@ const subcommandMap = new Map(/* subcommand: execute */);
     console.timeLog("mozilla", "buildChromeRegistry");
     await parseDriver.gatherXPCOMClassData();
     console.timeLog("mozilla", "gatherXPCOMClassData");
+    await parseDriver.gatherResourceModuleReferences();
+    console.timeLog("mozilla", "gatherResourceModuleReferences");
 
     const {startAsync, asyncRefs} = await parseDriver.analyzeByConfiguration(config.driver, {
       newIgnore: args.ignore

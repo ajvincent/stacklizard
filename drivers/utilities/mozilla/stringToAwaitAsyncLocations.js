@@ -1,6 +1,19 @@
 "use strict";
 const JSDriver = require("../../javascript");
 
+const locationsDriverMap = new Map(/* path: JSDriver */);
+
+async function getLocationsDriver(rootDir, options, path) {
+  if (!locationsDriverMap.has(path)) {
+    const driver = new JSDriver(rootDir, options);
+    await driver.appendJSFile(path);
+    driver.parseSources();
+    locationsDriverMap.set(path, driver);
+  }
+
+  return locationsDriverMap.get(path);
+}
+
 /**
  * Convert a contract ID on one file's line to metadata to find the equivalent await & async nodes later.
  * @param {string} rootDir    The root directory of the configuration.
@@ -11,10 +24,8 @@ const JSDriver = require("../../javascript");
  *
  * @returns {Object} containing awaitLocation, asyncLocation.
  */
-async function contractToAwaitAsyncLocations(rootDir, options, path, line, contractId) {
-  const driver = new JSDriver(rootDir, options);
-  await driver.appendJSFile(path);
-  driver.parseSources();
+async function stringToAwaitAsyncLocations(rootDir, options, path, line, contractId) {
+  const driver = await getLocationsDriver(rootDir, options, path);
 
   const awaitLocation = {
     path,
@@ -53,4 +64,7 @@ async function contractToAwaitAsyncLocations(rootDir, options, path, line, contr
   return {awaitLocation, asyncLocation};
 }
 
-module.exports = contractToAwaitAsyncLocations;
+module.exports = {
+  stringToAwaitAsyncLocations,
+  getLocationsDriver
+};
