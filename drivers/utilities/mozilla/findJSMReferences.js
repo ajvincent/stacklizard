@@ -18,12 +18,14 @@ AncestorWalker.prototype = {
       n => n.type === "Literal"
     );
 
-    let nodeStack = [];
+    this.nodeStack = [];
     while (node) {
-      nodeStack.unshift(node);
+      this.nodeStack.unshift(node);
       console.log(this.jsDriver.serializeNode(node));
 
-      if (this.handleVariableDeclarator(nodeStack)) {
+      if (this.handleChromeUtils(node) ||
+          this.handleXPCOMUtils(node) ||
+          false) {
         return;
       }
 
@@ -34,23 +36,58 @@ AncestorWalker.prototype = {
     throw new Error("unsupported");
   },
 
-  handleVariableDeclarator(nodeStack) {
-    const head = nodeStack[0];
-    if (head.type !== "VariableDeclarator")
+  handleChromeUtils(head) {
+    if ((head.type !== "VariableDeclarator") ||
+        (head.init.type !== "CallExpression") ||
+        (head.init.callee.type !== "MemberExpression") ||
+        (head.init.callee.object.type !== "Identifier") ||
+        (this.jsDriver.getNodeName(head.init.callee.object) !== "ChromeUtils") ||
+        (head.init.callee.property.type !== "Identifier"))
       return false;
 
     if (head.id.type !== "ObjectPattern")
       throw new Error("unsupported");
 
-    return this.assignReference(head.id, head.value);
+    if (this.jsDriver.getNodeName(head.init.callee.property) !== "import")
+      throw new Error("unsupported");
+
+    return head.id.properties.every(property => this.assignReference(property));
   },
 
-  assignReference(targetNode, sourceNode) {
-    const variable = this.currentScope.set.get(this.jsDriver.getNodeName(sourceNode));
-    const definition = variable.defs[0];
+  handleXPCOMUtils(head) {
+    if ((head.type !== "CallExpression") ||
+        (head.callee.type !== "MemberExpression") ||
+        (head.callee.object.type !== "Identifier") ||
+        (this.jsDriver.getNodeName(head.callee.object) !== "XPCOMUtils") ||
+        (head.callee.property.type !== "Identifier"))
+      return false;
 
-    void(definition);
-    void(targetNode);
+    if (this.jsDriver.getNodeName(head.callee.property) === "defineLazyModuleGetters") {
+      const assignee = head.arguments[0];
+      if (assignee.type !== "ThisExpression")
+        throw new Error("unsupported");
+      const properties = head.arguments[1];
+      if (properties.type !== "ObjectExpression")
+        throw new Error("unsupported");
+      this.assignReference(this.nodeStack[this.nodeStack.length - 2].key);
+    }
+    else {
+      throw new Error("unsupported");
+    }
+
+    return true;
+  },
+
+  assignReference(targetNode) {
+    debugger;
+
+    const name = this.jsDriver.getNodeName(targetNode);
+    const variable = this.currentScope.set.get(name);
+    const sourceNode = variable.defs[0].node;
+
+    // definition is the exported node.  targetNode is where that export is imported.
+
+    this.mozillaDriver.markExportLocation(sourceNode, targetNode);
     return true;
   }
 };

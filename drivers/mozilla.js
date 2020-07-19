@@ -248,6 +248,11 @@ class MozillaDriver {
     });
   }
 
+  markExportLocation(sourceNode, targetNode) {
+    void(sourceNode);
+    void(targetNode);
+  }
+
   /**
    * Map constructor names to contract ID's.
    *

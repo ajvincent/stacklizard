@@ -240,6 +240,15 @@ function JSDriver(rootDir, options = {}) {
   this.valueNodeToKeyNode = new WeakMap(/*
     value node: key node
   */);
+  {
+    let originalSet = this.valueNodeToKeyNode.set;
+    this.valueNodeToKeyNode.set = function(key, value) {
+      if (key === value) {
+        throw new Error("Invariant failure:  key === value");
+      }
+      return originalSet.apply(this, arguments);
+    };
+  }
 
   /**
    * A mapping of nodes to a matching constructor function.
@@ -505,7 +514,8 @@ JSDriver.prototype = {
         }
         else if (node.type === "Property") {
           // a = {b : 0};
-          this.valueNodeToKeyNode.set(node.value, node.key);
+          if (node.value !== node.key)
+            this.valueNodeToKeyNode.set(node.value, node.key);
 
           // a = { get b() { return 0; }};
           if (node.kind !== "init") {
@@ -840,6 +850,8 @@ JSDriver.prototype = {
    * @throws for unknown node types
    */
   getNodeName: function(node) {
+    if (this.valueNodeToKeyNode.get(node) === node)
+      throw new Error("Invariant failure:  valueNodeToKeyNode.get(node) === node");
     if (this.valueNodeToKeyNode.has(node) && (node.type !== "CallExpression"))
       return this.getNodeName(this.valueNodeToKeyNode.get(node));
 
