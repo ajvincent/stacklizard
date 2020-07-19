@@ -79,8 +79,6 @@ AncestorWalker.prototype = {
   },
 
   assignReference(targetNode) {
-    debugger;
-
     const name = this.jsDriver.getNodeName(targetNode);
     const variable = this.currentScope.set.get(name);
     const sourceNode = variable.defs[0].node;
