@@ -85,7 +85,7 @@ AncestorWalker.prototype = {
 
     // definition is the exported node.  targetNode is where that export is imported.
 
-    this.mozillaDriver.markExportLocation(sourceNode, targetNode);
+    this.mozillaDriver.markExportLocation(sourceNode, targetNode, name);
     return true;
   }
 };

@@ -97,9 +97,10 @@ class MozillaDriver {
    *   startAsync: The start node indicated by config.markAsync.
    *   asyncRefs:  Map() of async nodes to corresponding await nodes and their async callers.
    */
-  async analyzeByConfiguration(config, options) {
+  async analyzeByConfiguration(config) {
+    this.baseConfiguration = config;
     if (config.type === "javascript")
-      return await this.analyzeByJSConfiguration(config, options);
+      return await this.analyzeByJSConfiguration(config);
     throw new Error("Unsupported configuration type");
   }
 
@@ -120,6 +121,7 @@ class MozillaDriver {
     this.topStartAsync = null;
     this.topAsyncRefs = new Map();
 
+    console.log("Starting first scheduleConfiguration");
     this.scheduleConfiguration(config);
 
     while (this.asyncTasks.length) {
@@ -248,9 +250,18 @@ class MozillaDriver {
     });
   }
 
-  markExportLocation(sourceNode, targetNode) {
-    void(sourceNode);
-    void(targetNode);
+  markExportLocation(sourceNode, targetNode, name) {
+    // this is very temporary code until I figure out how to handle this
+    let rv = "markExportLocation(" + name + "): ";
+    const sourceDriver = this.nodeToDriver.get(sourceNode);
+    if (sourceDriver)
+      rv += "source: " + sourceDriver.serializeNode(sourceNode) + " ";
+    const targetDriver = this.nodeToDriver.get(targetNode);
+    if (targetDriver)
+      rv += "target: " + targetDriver.serializeNode(targetNode) + " ";
+    else
+      rv += "unknown target: " + targetNode.file + ": " + targetNode.line;
+    console.log(rv);
   }
 
   /**
