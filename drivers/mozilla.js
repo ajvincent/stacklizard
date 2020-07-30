@@ -83,7 +83,9 @@ class MozillaDriver {
 
     this.contractToFiles = null; // new Map( contract: file[] )
 
-    this.jsmExportReferences = new Map(/* node in JSM: node[] */);
+    this.jsmExportReferences = new Map(/* node in JSM: [{}] */);
+
+    this.exportLocations = new Set(/* string */);
   }
 
   /**
@@ -229,7 +231,7 @@ class MozillaDriver {
 
   async scheduleFindJSMReferences(pathToFile, names, scope) {
     const loaders = this.jsmReferences.get(path.basename(pathToFile));
-    console.log(names, loaders);
+    console.log("scheduleFindJSMReferences", names, loaders);
 
     loaders.forEach(loader => {
       this.asyncTasks.push(async () => {
@@ -261,7 +263,15 @@ class MozillaDriver {
       rv += "target: " + targetDriver.serializeNode(targetNode) + " ";
     else
       rv += "unknown target: " + targetNode.file + ": " + targetNode.line;
-    console.log(rv);
+    this.exportLocations.add(rv);
+    /*
+    if (!this.jsmExportReferences.has(sourceNode))
+      this.jsmExportReferences.set(sourceNode, []);
+    this.jsmExportReferences.get(sourceNode).push({
+      name,
+      targetNode,
+    });
+    */
   }
 
   /**
@@ -499,6 +509,10 @@ class MozillaDriver {
       return true;
     const subDriver = this.nodeToDriver.get(node);
     return subDriver.isAsyncSyntaxError(node);
+  }
+
+  serializeMiscellaneous() {
+    return Array.from(this.exportLocations.values()).join("\n");
   }
 }
 

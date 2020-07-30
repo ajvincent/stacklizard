@@ -25,6 +25,7 @@ HTMLSerializer.prototype.serialize = function()
   ${this.appendNodes(null)}
   ${this.appendIgnoredNodes()}
   ${this.appendAsyncSyntaxErrors()}
+  <pre>${this.parseDriver.serializeMiscellaneous()}</pre>
 </body></html>`;
 };
 

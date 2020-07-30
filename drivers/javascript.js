@@ -1124,6 +1124,10 @@ JSDriver.prototype = {
     return this.accessorNodes.has(node) ||
            this.constructorFunctions.has(node);
   },
+
+  serializeMiscellaneous: function() {
+    return "";
+  },
 };
 
 module.exports = JSDriver;
